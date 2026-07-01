@@ -1,0 +1,3 @@
+export default function LinearPage() {
+  return <main className="flex-1 p-4 lg:p-16">Linear</main>;
+}
