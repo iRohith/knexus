@@ -1,0 +1,43 @@
+# ============================================================
+# Knowledge Nexus — Common Configuration
+# ============================================================
+
+spring:
+  application:
+    name: knowledge-nexus
+
+  # --- JPA / Hibernate ---
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+
+  # --- Jackson ---
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+  # --- Kafka Common ---
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      group-id: knowledge-nexus-group
+      properties:
+        spring.json.trusted.packages: com.corp_krc.backend.kafka.event
+
+# --- Server ---
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1

@@ -1,0 +1,41 @@
+# ============================================================
+# Knowledge Nexus — Development Profile
+# ============================================================
+
+spring:
+  # --- DataSource ---
+  datasource:
+    url: jdbc:postgresql://localhost:5432/knowledge_nexus_dev
+    username: nexus
+    password: nexus_dev_password
+    driver-class-name: org.postgresql.Driver
+
+  # --- JPA ---
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  # --- Kafka ---
+  kafka:
+    bootstrap-servers: localhost:9092
+
+# --- JWT ---
+jwt:
+  secret: ${JWT_SECRET:dev-secret-key-that-is-at-least-256-bits-long-for-hs256-signing}
+  access-token-expiry-ms: 1800000     # 30 minutes (longer for dev convenience)
+  refresh-token-expiry-ms: 604800000  # 7 days
+
+# --- Cognee ---
+cognee:
+  base-url: ${COGNEE_BASE_URL:https://api.cognee.ai}
+  api-key: ${COGNEE_API_KEY:}
+  connect-timeout-ms: 5000
+  read-timeout-ms: 60000
+
+# --- Logging ---
+logging:
+  level:
+    com.corp_krc.backend: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
