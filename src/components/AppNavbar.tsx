@@ -1,5 +1,6 @@
 import { AppNavMenu } from "@/components/AppNavMenu";
 import { DarkModeToggle } from "@/components/DarkModeToggle";
+import { UserMenu } from "@/components/UserMenu";
 
 export function AppNavbar() {
   return (
@@ -13,6 +14,7 @@ export function AppNavbar() {
         <div className="flex items-center gap-2">
           <AppNavMenu />
           <DarkModeToggle />
+          <UserMenu />
         </div>
       </div>
     </header>
