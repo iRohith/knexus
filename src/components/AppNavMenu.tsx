@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Grid2X2, ShieldCheck } from "lucide-react";
+import { BrainCircuit, ChevronDown, Grid2X2, Network, ShieldCheck } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { FaSlack } from "react-icons/fa";
 import {
@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navItems = [
+  { label: "Intelligence", href: "/", icon: BrainCircuit, aliases: ["/intelligence"] },
+  { label: "Knowledge Graph", href: "/knowledge-graph", icon: Network },
   { label: "Admin", href: "/admin", icon: ShieldCheck },
   { label: "Gmail", href: "/gmail", icon: SiGmail },
   { label: "Slack", href: "/slack", icon: FaSlack },
@@ -39,9 +41,14 @@ const navItems = [
 export function AppNavMenu() {
   const pathname = usePathname();
   const router = useRouter();
-  const activeItem = navItems.find(
-    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
-  );
+  const activeItem = navItems.find((item) => {
+    const aliases = "aliases" in item ? item.aliases : [];
+    return (
+      pathname === item.href ||
+      pathname.startsWith(`${item.href}/`) ||
+      aliases.some((alias) => pathname === alias || pathname.startsWith(`${alias}/`))
+    );
+  });
 
   return (
     <DropdownMenu>

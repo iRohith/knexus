@@ -1,5 +1,5 @@
 import { IntelligencePortal } from "@/app/IntelligencePortal";
 
-export default function Home() {
+export default function IntelligencePage() {
   return <IntelligencePortal />;
 }

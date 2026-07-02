@@ -182,8 +182,7 @@ export function AdminHistory() {
                           </span>
                           <span className="mt-1 block text-xs font-normal text-muted-foreground">
                             {formatCount(run.eventIds.length)} events · Started{" "}
-                            {formatRelativeTime(run.createdAt)} · Updated{" "}
-                            {formatRelativeTime(run.updatedAt)}
+                            {formatRelativeTime(run.createdAt)}
                           </span>
                         </span>
                         <span className="w-full min-w-44 max-w-64">
