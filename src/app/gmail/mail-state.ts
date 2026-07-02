@@ -33,7 +33,7 @@ export type Attachment = {
   name: string;
   type: string;
   size: string;
-  mockUrl: string;
+  sampleUrl: string;
 };
 
 export type Message = {
@@ -187,14 +187,14 @@ export function getInitials(name: string) {
     .toUpperCase();
 }
 
-export function makeMockAttachment(seed: string, index = 0): Attachment {
+export function makeSampleAttachment(seed: string, index = 0): Attachment {
   const extension = index % 3 === 0 ? "pdf" : index % 3 === 1 ? "docx" : "png";
   return {
     id: `att-${seed}-${index}`,
     name: `${seed}-brief.${extension}`,
     type: extension.toUpperCase(),
     size: `${120 + index * 48} KB`,
-    mockUrl: "#",
+    sampleUrl: "#",
   };
 }
 
@@ -348,7 +348,7 @@ function buildInitialSnapshot(): MailSnapshot {
         timestamp: baseTime + messageIndex * 18 * 60 * 1000,
         attachments:
           messageIndex === 0 && index % 6 === 0
-            ? [makeMockAttachment(label.toLowerCase(), index % 3)]
+            ? [makeSampleAttachment(label.toLowerCase(), index % 3)]
             : [],
         read: index % 4 !== 0 || sentByMailboxUser,
         sentByMe: sentByMailboxUser,
@@ -385,7 +385,7 @@ function buildInitialSnapshot(): MailSnapshot {
       subject,
       body: `Sharing the promised follow up with context, action items, and owners.\n\nBest,\n${sender.name}`,
       timestamp: now - (index + 320) * 45 * 60 * 1000,
-      attachments: index % 8 === 0 ? [makeMockAttachment("proposal", index % 3)] : [],
+      attachments: index % 8 === 0 ? [makeSampleAttachment("proposal", index % 3)] : [],
       read: true,
       sentByMe: true,
     });
@@ -414,7 +414,7 @@ function buildInitialSnapshot(): MailSnapshot {
       bcc: [],
       subject: `Re: ${draftConversation.subject}`,
       body: "Draft reply with the latest numbers attached.",
-      attachments: [makeMockAttachment("draft", 0)],
+      attachments: [makeSampleAttachment("draft", 0)],
       minimized: false,
     };
   }
@@ -682,7 +682,7 @@ export const useGmailMailStore = create<GmailMailState>((set, get) => ({
     get().updateDraft(draftId, {
       attachments: [
         ...draft.attachments,
-        makeMockAttachment("attachment", draft.attachments.length),
+        makeSampleAttachment("attachment", draft.attachments.length),
       ],
     });
   },

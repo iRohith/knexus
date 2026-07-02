@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -408,6 +409,18 @@ export function GmailApp({
   function runAction(action: MailAction, message: string, ids = actionIds) {
     if (ids.length === 0) return;
     mutateConversations(ids, action);
+    captureActivityEvent({
+      sourceApp: "gmail",
+      actorId: activeUser.id,
+      type: "mail_action",
+      action: `Gmail ${action}`,
+      title: `${message} in Gmail`,
+      body: `${ids.length} conversation${ids.length === 1 ? "" : "s"} changed by ${activeUser.name}.`,
+      sourceEntityId: ids[0],
+      sourceEntityType: "conversation",
+      sourceUrl: `/gmail?folder=${folder}&page=${currentPage}&id=${ids[0]}`,
+      metadata: { action, conversationIds: ids, folder, label: label ?? null },
+    });
     setSelectedIds(new Set());
     setSelectAllMatching(false);
     if (selectedId && ids.includes(selectedId)) updateUrl({ id: null });
@@ -623,6 +636,37 @@ export function GmailApp({
             onAction?.({
               type: "SEND_EMAIL",
               payload: { draftId: currentDraft.id, authorId: activeUser.id, ...currentDraft },
+            });
+            captureActivityEvent({
+              sourceApp: "gmail",
+              actorId: activeUser.id,
+              type:
+                currentDraft.mode === "compose"
+                  ? "message"
+                  : currentDraft.mode === "forward"
+                    ? "mail_action"
+                    : "reply",
+              action:
+                currentDraft.mode === "compose"
+                  ? "Sent email"
+                  : currentDraft.mode === "forward"
+                    ? "Forwarded email"
+                    : "Replied to email",
+              title: currentDraft.subject || "Gmail message sent",
+              body: currentDraft.body || "Sent Gmail message.",
+              sourceEntityId: currentDraft.conversationId ?? currentDraft.id,
+              sourceEntityType: currentDraft.conversationId ? "conversation" : "draft",
+              sourceUrl: currentDraft.conversationId
+                ? `/gmail?folder=sent&page=1&id=${currentDraft.conversationId}`
+                : "/gmail?folder=sent&page=1",
+              metadata: {
+                draftId: currentDraft.id,
+                mode: currentDraft.mode,
+                to: currentDraft.to.map((recipient) => recipient.email),
+                cc: currentDraft.cc.map((recipient) => recipient.email),
+                bcc: currentDraft.bcc.map((recipient) => recipient.email),
+                attachmentCount: currentDraft.attachments.length,
+              },
             });
           }}
         />

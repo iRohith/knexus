@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { appUsers } from "@/lib/users";
 import { useActiveUser } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
@@ -218,7 +219,7 @@ export function GoogleDriveApp({
                             <span key={item.id} className="flex items-center gap-1">
                               <span>/</span>
                               <button
-                                className="hover:underline cursor-pointer truncate max-w-[120px]"
+                                className="hover:underline cursor-pointer truncate max-w-30"
                                 onClick={() => updateUrl({ folder: item.id, file: null })}
                               >
                                 {item.name}
@@ -273,9 +274,54 @@ export function GoogleDriveApp({
                     ? updateUrl({ view: "my-drive", folder: item.id, file: null })
                     : updateUrl({ file: item.id })
                 }
-                onStar={(id) => toggleStar(id, activeUser.id)}
-                onTrash={(id) => trashItem(id, activeUser.id)}
-                onRestore={(id) => restoreItem(id, activeUser.id)}
+                onStar={(id) => {
+                  toggleStar(id, activeUser.id);
+                  const item = items[id];
+                  captureActivityEvent({
+                    sourceApp: "google-drive",
+                    actorId: activeUser.id,
+                    type: "file_action",
+                    action: "Starred Google Drive item",
+                    title: item?.name ?? "Drive item starred",
+                    body: `${item?.kind ?? "item"} starred in Google Drive.`,
+                    sourceEntityId: id,
+                    sourceEntityType: item?.kind ?? "item",
+                    sourceUrl: `/google-drive?view=starred&file=${id}`,
+                    metadata: { kind: item?.kind ?? null, parentId: item?.parentId ?? null },
+                  });
+                }}
+                onTrash={(id) => {
+                  trashItem(id, activeUser.id);
+                  const item = items[id];
+                  captureActivityEvent({
+                    sourceApp: "google-drive",
+                    actorId: activeUser.id,
+                    type: "file_action",
+                    action: "Trashed Google Drive item",
+                    title: item?.name ?? "Drive item trashed",
+                    body: `${item?.kind ?? "item"} moved to trash.`,
+                    sourceEntityId: id,
+                    sourceEntityType: item?.kind ?? "item",
+                    sourceUrl: `/google-drive?view=trash&file=${id}`,
+                    metadata: { kind: item?.kind ?? null, parentId: item?.parentId ?? null },
+                  });
+                }}
+                onRestore={(id) => {
+                  restoreItem(id, activeUser.id);
+                  const item = items[id];
+                  captureActivityEvent({
+                    sourceApp: "google-drive",
+                    actorId: activeUser.id,
+                    type: "file_action",
+                    action: "Restored Google Drive item",
+                    title: item?.name ?? "Drive item restored",
+                    body: `${item?.kind ?? "item"} restored from trash.`,
+                    sourceEntityId: id,
+                    sourceEntityType: item?.kind ?? "item",
+                    sourceUrl: `/google-drive?view=my-drive&file=${id}`,
+                    metadata: { kind: item?.kind ?? null, parentId: item?.parentId ?? null },
+                  });
+                }}
               />
             </div>
             <Preview
@@ -284,10 +330,53 @@ export function GoogleDriveApp({
               folders={Object.values(items).filter(
                 (item) => item.kind === "folder" && canAccessItem(item, activeUser.id),
               )}
-              onStar={() => selectedItem && toggleStar(selectedItem.id, activeUser.id)}
-              onTrash={() => selectedItem && trashItem(selectedItem.id, activeUser.id)}
+              onStar={() => {
+                if (!selectedItem) return;
+                toggleStar(selectedItem.id, activeUser.id);
+                captureActivityEvent({
+                  sourceApp: "google-drive",
+                  actorId: activeUser.id,
+                  type: "file_action",
+                  action: "Starred Google Drive item",
+                  title: selectedItem.name,
+                  body: `${selectedItem.kind} starred in Google Drive.`,
+                  sourceEntityId: selectedItem.id,
+                  sourceEntityType: selectedItem.kind,
+                  sourceUrl: `/google-drive?view=starred&file=${selectedItem.id}`,
+                  metadata: { kind: selectedItem.kind, parentId: selectedItem.parentId },
+                });
+              }}
+              onTrash={() => {
+                if (!selectedItem) return;
+                trashItem(selectedItem.id, activeUser.id);
+                captureActivityEvent({
+                  sourceApp: "google-drive",
+                  actorId: activeUser.id,
+                  type: "file_action",
+                  action: "Trashed Google Drive item",
+                  title: selectedItem.name,
+                  body: `${selectedItem.kind} moved to trash.`,
+                  sourceEntityId: selectedItem.id,
+                  sourceEntityType: selectedItem.kind,
+                  sourceUrl: `/google-drive?view=trash&file=${selectedItem.id}`,
+                  metadata: { kind: selectedItem.kind, parentId: selectedItem.parentId },
+                });
+              }}
               onShare={(userId) =>
-                selectedItem && shareItem(selectedItem.id, activeUser.id, userId)
+                selectedItem &&
+                (shareItem(selectedItem.id, activeUser.id, userId),
+                captureActivityEvent({
+                  sourceApp: "google-drive",
+                  actorId: activeUser.id,
+                  type: "share",
+                  action: "Shared Google Drive item",
+                  title: selectedItem.name,
+                  body: `${selectedItem.kind} shared with ${userId}.`,
+                  sourceEntityId: selectedItem.id,
+                  sourceEntityType: selectedItem.kind,
+                  sourceUrl: `/google-drive?view=shared&file=${selectedItem.id}`,
+                  metadata: { kind: selectedItem.kind, sharedWith: userId },
+                }))
               }
               onRename={(name) => selectedItem && renameItem(selectedItem.id, activeUser.id, name)}
               onMove={(parentId) =>
@@ -314,6 +403,18 @@ export function GoogleDriveApp({
               type: "CREATE_FOLDER",
               payload: { id, name, authorId: activeUser.id, parentId: folderId ?? null },
             });
+            captureActivityEvent({
+              sourceApp: "google-drive",
+              actorId: activeUser.id,
+              type: "create",
+              action: "Created Google Drive folder",
+              title: name,
+              body: `Folder created in Google Drive.`,
+              sourceEntityId: id,
+              sourceEntityType: "folder",
+              sourceUrl: `/google-drive?view=my-drive&folder=${id}`,
+              metadata: { parentId: folderId ?? null },
+            });
           }
         }}
       />
@@ -327,6 +428,18 @@ export function GoogleDriveApp({
             onAction?.({
               type: "UPLOAD_FILE",
               payload: { id, ...input, authorId: activeUser.id, parentId: folderId ?? null },
+            });
+            captureActivityEvent({
+              sourceApp: "google-drive",
+              actorId: activeUser.id,
+              type: "file_action",
+              action: "Uploaded Google Drive file",
+              title: input.name,
+              body: input.content || `Uploaded ${input.kind} file.`,
+              sourceEntityId: id,
+              sourceEntityType: input.kind,
+              sourceUrl: `/google-drive?view=my-drive&file=${id}`,
+              metadata: { kind: input.kind, parentId: folderId ?? null },
             });
             updateUrl({ file: id });
           }
@@ -745,7 +858,7 @@ function UploadDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Upload mock file</DialogTitle>
+          <DialogTitle>Upload file</DialogTitle>
         </DialogHeader>
         <div className="grid gap-3">
           <Input

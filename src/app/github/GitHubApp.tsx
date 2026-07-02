@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -445,6 +446,18 @@ export function GitHubApp({
                       type: "CREATE_ISSUE",
                       payload: { id: createdId, repoId, authorId: activeUser.id, ...input },
                     });
+                    captureActivityEvent({
+                      sourceApp: "github",
+                      actorId: activeUser.id,
+                      type: "create",
+                      action: "Created GitHub issue",
+                      title: input.title,
+                      body: input.body || "New GitHub issue created.",
+                      sourceEntityId: createdId,
+                      sourceEntityType: "issue",
+                      sourceUrl: `/github?repo=${repoId}&tab=issues&issue=${createdId}`,
+                      metadata: { repoId, labels: input.labels, assigneeIds: input.assigneeIds },
+                    });
                     updateUrl({ issue: createdId, pr: null, newIssue: null, path: null, q: null });
                   }}
                 />
@@ -466,9 +479,35 @@ export function GitHubApp({
                         content: commentDraft,
                       },
                     });
+                    captureActivityEvent({
+                      sourceApp: "github",
+                      actorId: activeUser.id,
+                      type: "comment",
+                      action: "Commented on GitHub issue",
+                      title: selectedIssue.title,
+                      body: commentDraft,
+                      sourceEntityId: selectedIssue.id,
+                      sourceEntityType: "issue",
+                      sourceUrl: `/github?repo=${repoId}&tab=issues&issue=${selectedIssue.id}`,
+                      metadata: { repoId, issueNumber: selectedIssue.number },
+                    });
                     setCommentDraft("");
                   }}
-                  onStatus={(status) => setIssueStatus(selectedIssue.id, activeUser.id, status)}
+                  onStatus={(status) => {
+                    setIssueStatus(selectedIssue.id, activeUser.id, status);
+                    captureActivityEvent({
+                      sourceApp: "github",
+                      actorId: activeUser.id,
+                      type: "status_change",
+                      action: `Set GitHub issue ${status}`,
+                      title: selectedIssue.title,
+                      body: `Issue #${selectedIssue.number} changed to ${status}.`,
+                      sourceEntityId: selectedIssue.id,
+                      sourceEntityType: "issue",
+                      sourceUrl: `/github?repo=${repoId}&tab=issues&issue=${selectedIssue.id}`,
+                      metadata: { repoId, status },
+                    });
+                  }}
                   onLabels={(labels) => updateIssueLabels(selectedIssue.id, activeUser.id, labels)}
                   onAssignees={(assignees) =>
                     updateIssueAssignees(selectedIssue.id, activeUser.id, assignees)
@@ -499,6 +538,22 @@ export function GitHubApp({
                       type: "CREATE_PULL_REQUEST",
                       payload: { id: createdId, repoId, authorId: activeUser.id, ...input },
                     });
+                    captureActivityEvent({
+                      sourceApp: "github",
+                      actorId: activeUser.id,
+                      type: "create",
+                      action: "Created GitHub pull request",
+                      title: input.title,
+                      body: input.body || "New GitHub pull request created.",
+                      sourceEntityId: createdId,
+                      sourceEntityType: "pull_request",
+                      sourceUrl: `/github?repo=${repoId}&tab=pulls&pr=${createdId}`,
+                      metadata: {
+                        repoId,
+                        sourceBranch: input.sourceBranch,
+                        targetBranch: input.targetBranch,
+                      },
+                    });
                     updateUrl({ pr: createdId, issue: null, newPr: null, path: null, q: null });
                   }}
                 />
@@ -519,9 +574,35 @@ export function GitHubApp({
                         content: commentDraft,
                       },
                     });
+                    captureActivityEvent({
+                      sourceApp: "github",
+                      actorId: activeUser.id,
+                      type: "comment",
+                      action: "Commented on GitHub pull request",
+                      title: selectedPull.title,
+                      body: commentDraft,
+                      sourceEntityId: selectedPull.id,
+                      sourceEntityType: "pull_request",
+                      sourceUrl: `/github?repo=${repoId}&tab=pulls&pr=${selectedPull.id}`,
+                      metadata: { repoId, pullNumber: selectedPull.number },
+                    });
                     setCommentDraft("");
                   }}
-                  onMerge={() => mergePull(selectedPull.id, activeUser.id)}
+                  onMerge={() => {
+                    mergePull(selectedPull.id, activeUser.id);
+                    captureActivityEvent({
+                      sourceApp: "github",
+                      actorId: activeUser.id,
+                      type: "status_change",
+                      action: "Merged GitHub pull request",
+                      title: selectedPull.title,
+                      body: `PR #${selectedPull.number} was merged into ${selectedPull.targetBranch}.`,
+                      sourceEntityId: selectedPull.id,
+                      sourceEntityType: "pull_request",
+                      sourceUrl: `/github?repo=${repoId}&tab=pulls&pr=${selectedPull.id}`,
+                      metadata: { repoId, pullNumber: selectedPull.number },
+                    });
+                  }}
                 />
               ) : (
                 <PullList
@@ -998,8 +1079,8 @@ function NewIssueForm({
             <GitBranch className="size-4" />
             Issue workflow
           </div>
-          New issues open immediately, notify assigned users in the mock store, and can be closed or
-          reopened from the detail view.
+          New issues open immediately, notify assigned users, and can be closed or reopened from the
+          detail view.
         </div>
       </aside>
     </form>
@@ -1012,7 +1093,10 @@ function TimelineComment({
   comment: { id: string; authorId: string; body: string; timestamp: number };
 }) {
   return (
-    <div className="flex gap-3 rounded-md border border-[#d0d7de] bg-white p-3 dark:border-[#30363d] dark:bg-[#0d1117]">
+    <div
+      id={comment.id}
+      className="flex gap-3 rounded-md border border-[#d0d7de] bg-white p-3 dark:border-[#30363d] dark:bg-[#0d1117]"
+    >
       <Avatar>
         <AvatarFallback>{userInitials(comment.authorId)}</AvatarFallback>
       </Avatar>

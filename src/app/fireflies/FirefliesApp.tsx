@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { appUsers } from "@/lib/users";
 import { useActiveUser } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
@@ -223,18 +224,84 @@ export function FirefliesApp() {
                 activeUserId={activeUser.id}
                 commentDraft={commentDraft}
                 onCommentDraft={setCommentDraft}
-                onAction={(actionId) =>
-                  toggleActionItem(selectedMeeting.id, actionId, activeUser.id)
-                }
-                onAddAction={(text, ownerId) =>
-                  addActionItem(selectedMeeting.id, activeUser.id, text, ownerId)
-                }
-                onShare={(userId) => shareMeeting(selectedMeeting.id, activeUser.id, userId)}
-                onSaveText={(summary, topics) =>
-                  updateMeetingText(selectedMeeting.id, activeUser.id, summary, topics)
-                }
+                onAction={(actionId) => {
+                  toggleActionItem(selectedMeeting.id, actionId, activeUser.id);
+                  const item = selectedMeeting.actionItems.find((action) => action.id === actionId);
+                  captureActivityEvent({
+                    sourceApp: "fireflies",
+                    actorId: activeUser.id,
+                    type: "meeting_action",
+                    action: "Toggled Fireflies action item",
+                    title: selectedMeeting.title,
+                    body: item?.text ?? "Meeting action item updated.",
+                    sourceEntityId: actionId,
+                    sourceEntityType: "action_item",
+                    sourceUrl: `/fireflies?view=actions&meeting=${selectedMeeting.id}`,
+                    metadata: {
+                      meetingId: selectedMeeting.id,
+                      completed: !(item?.completed ?? false),
+                    },
+                  });
+                }}
+                onAddAction={(text, ownerId) => {
+                  addActionItem(selectedMeeting.id, activeUser.id, text, ownerId);
+                  captureActivityEvent({
+                    sourceApp: "fireflies",
+                    actorId: activeUser.id,
+                    type: "meeting_action",
+                    action: "Added Fireflies action item",
+                    title: selectedMeeting.title,
+                    body: text,
+                    sourceEntityId: selectedMeeting.id,
+                    sourceEntityType: "meeting",
+                    sourceUrl: `/fireflies?view=actions&meeting=${selectedMeeting.id}`,
+                    metadata: { meetingId: selectedMeeting.id, ownerId },
+                  });
+                }}
+                onShare={(userId) => {
+                  shareMeeting(selectedMeeting.id, activeUser.id, userId);
+                  captureActivityEvent({
+                    sourceApp: "fireflies",
+                    actorId: activeUser.id,
+                    type: "share",
+                    action: "Shared Fireflies meeting",
+                    title: selectedMeeting.title,
+                    body: `Meeting shared with ${userId}.`,
+                    sourceEntityId: selectedMeeting.id,
+                    sourceEntityType: "meeting",
+                    sourceUrl: `/fireflies?view=shared&meeting=${selectedMeeting.id}`,
+                    metadata: { sharedWith: userId },
+                  });
+                }}
+                onSaveText={(summary, topics) => {
+                  updateMeetingText(selectedMeeting.id, activeUser.id, summary, topics);
+                  captureActivityEvent({
+                    sourceApp: "fireflies",
+                    actorId: activeUser.id,
+                    type: "update",
+                    action: "Updated Fireflies summary",
+                    title: selectedMeeting.title,
+                    body: summary,
+                    sourceEntityId: selectedMeeting.id,
+                    sourceEntityType: "meeting",
+                    sourceUrl: `/fireflies?view=all&meeting=${selectedMeeting.id}`,
+                    metadata: { topics },
+                  });
+                }}
                 onComment={() => {
                   addComment(selectedMeeting.id, activeUser.id, commentDraft);
+                  captureActivityEvent({
+                    sourceApp: "fireflies",
+                    actorId: activeUser.id,
+                    type: "comment",
+                    action: "Commented on Fireflies meeting",
+                    title: selectedMeeting.title,
+                    body: commentDraft,
+                    sourceEntityId: selectedMeeting.id,
+                    sourceEntityType: "meeting",
+                    sourceUrl: `/fireflies?view=all&meeting=${selectedMeeting.id}`,
+                    metadata: { meetingId: selectedMeeting.id },
+                  });
                   setCommentDraft("");
                 }}
               />
@@ -251,6 +318,18 @@ export function FirefliesApp() {
           const id = importMeeting({ ...input, actorId: activeUser.id });
           if (id) {
             setImportOpen(false);
+            captureActivityEvent({
+              sourceApp: "fireflies",
+              actorId: activeUser.id,
+              type: "meeting_action",
+              action: "Imported Fireflies meeting",
+              title: input.title,
+              body: input.summary,
+              sourceEntityId: id,
+              sourceEntityType: "meeting",
+              sourceUrl: `/fireflies?view=mine&meeting=${id}`,
+              metadata: { attendeeIds: input.attendeeIds },
+            });
             updateUrl({ view: "mine", meeting: id, q: null });
           }
         }}
@@ -487,6 +566,7 @@ function MeetingDetail({
             {meeting.actionItems.map((item) => (
               <button
                 key={item.id}
+                id={item.id}
                 className="flex w-full cursor-pointer items-start gap-2 rounded-md p-2 text-left hover:bg-[#f8fafc] dark:hover:bg-[#252b3a]"
                 onClick={() => onAction(item.id)}
                 type="button"
@@ -558,7 +638,7 @@ function MeetingDetail({
         <div className="mb-3 font-semibold">Comments</div>
         <div className="space-y-3">
           {meeting.comments.map((comment) => (
-            <div key={comment.id} className="flex gap-3">
+            <div key={comment.id} id={comment.id} className="flex gap-3">
               <Avatar>
                 <AvatarFallback>{initials(comment.authorId)}</AvatarFallback>
               </Avatar>

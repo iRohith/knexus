@@ -85,7 +85,7 @@ function buildInitialSnapshot(): DriveSnapshot {
         starredBy: fileIndex % 4 === 0 ? [ownerId, ...items[folderId].sharedWith] : [],
         trashed: fileIndex === 7 && index % 2 === 0,
         size: `${120 + fileIndex * 43} KB`,
-        content: `Mock preview for ${name} ${kind}. Includes planning notes, ownership, dates, and project context.`,
+        content: `Preview for ${name} ${kind}. Includes planning notes, ownership, dates, and project context.`,
         updatedAt: now - (index * 8 + fileIndex + 1) * 47 * 60 * 1000,
       };
     }
@@ -157,7 +157,7 @@ export const useDriveStore = create<DriveState>((set) => ({
             starredBy: [],
             trashed: false,
             size: `${90 + name.length * 7} KB`,
-            content: input.content.trim() || `Mock uploaded ${input.kind} file.`,
+            content: input.content.trim() || `Uploaded ${input.kind} file.`,
             updatedAt: Date.now(),
           },
         },

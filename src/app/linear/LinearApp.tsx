@@ -43,6 +43,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { appUsers } from "@/lib/users";
 import { useActiveUser } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
@@ -334,7 +335,21 @@ export function LinearApp({
                 onText={(title, description) =>
                   updateIssueText(selectedIssue.id, activeUser.id, title, description)
                 }
-                onStatus={(status) => updateStatus(selectedIssue.id, activeUser.id, status)}
+                onStatus={(status) => {
+                  updateStatus(selectedIssue.id, activeUser.id, status);
+                  captureActivityEvent({
+                    sourceApp: "linear",
+                    actorId: activeUser.id,
+                    type: "status_change",
+                    action: `Moved Linear issue to ${status}`,
+                    title: selectedIssue.title,
+                    body: `${selectedIssue.identifier} changed status to ${status}.`,
+                    sourceEntityId: selectedIssue.id,
+                    sourceEntityType: "issue",
+                    sourceUrl: `/linear?team=${teamId}&view=list&issue=${selectedIssue.id}`,
+                    metadata: { teamId, status, identifier: selectedIssue.identifier },
+                  });
+                }}
                 onPriority={(priority) => updatePriority(selectedIssue.id, activeUser.id, priority)}
                 onAssignee={(assignee) => updateAssignee(selectedIssue.id, activeUser.id, assignee)}
                 onCycle={(cycle) => updateCycle(selectedIssue.id, activeUser.id, cycle)}
@@ -359,6 +374,18 @@ export function LinearApp({
                         content: commentDraft,
                       },
                     });
+                    captureActivityEvent({
+                      sourceApp: "linear",
+                      actorId: activeUser.id,
+                      type: "comment",
+                      action: "Commented on Linear issue",
+                      title: selectedIssue.title,
+                      body: commentDraft,
+                      sourceEntityId: selectedIssue.id,
+                      sourceEntityType: "issue",
+                      sourceUrl: `/linear?team=${teamId}&view=list&issue=${selectedIssue.id}`,
+                      metadata: { teamId, identifier: selectedIssue.identifier },
+                    });
                   }
                   setCommentDraft("");
                 }}
@@ -367,7 +394,22 @@ export function LinearApp({
               <Board
                 issues={filteredIssues}
                 onOpen={(id) => updateUrl({ issue: id })}
-                onStatus={(id, status) => updateStatus(id, activeUser.id, status)}
+                onStatus={(id, status) => {
+                  updateStatus(id, activeUser.id, status);
+                  const issue = issues[id];
+                  captureActivityEvent({
+                    sourceApp: "linear",
+                    actorId: activeUser.id,
+                    type: "status_change",
+                    action: `Moved Linear issue to ${status}`,
+                    title: issue?.title ?? "Linear issue moved",
+                    body: `${issue?.identifier ?? id} changed status to ${status}.`,
+                    sourceEntityId: id,
+                    sourceEntityType: "issue",
+                    sourceUrl: `/linear?team=${teamId}&view=board&issue=${id}`,
+                    metadata: { teamId, status, identifier: issue?.identifier ?? id },
+                  });
+                }}
               />
             ) : view === "roadmap" ? (
               <Roadmap
@@ -397,6 +439,18 @@ export function LinearApp({
           if (id) {
             setCreateOpen(false);
             onAction?.({ type: "CREATE_ISSUE", payload: { id, ...data } });
+            captureActivityEvent({
+              sourceApp: "linear",
+              actorId: activeUser.id,
+              type: "create",
+              action: "Created Linear issue",
+              title: data.title,
+              body: data.description || "New Linear issue created.",
+              sourceEntityId: id,
+              sourceEntityType: "issue",
+              sourceUrl: `/linear?team=${teamId}&view=list&issue=${id}`,
+              metadata: { teamId, priority: data.priority, assigneeId: data.assigneeId ?? null },
+            });
           }
         }}
       />
@@ -589,13 +643,13 @@ function Board({
   onStatus: (id: string, status: LinearStatus) => void;
 }) {
   return (
-    <div className="grid min-w-[1040px] gap-3 xl:min-w-0 xl:grid-cols-6">
+    <div className="grid min-w-260 gap-3 xl:min-w-0 xl:grid-cols-6">
       {linearStatuses.map((status) => {
         const columnIssues = issues.filter((issue) => issue.status === status);
         return (
           <section
             key={status}
-            className="min-h-[34rem] rounded-md border border-[#e2e4ea] bg-[#f1f2f7] dark:border-[#2a2d36] dark:bg-[#1d2029]"
+            className="min-h-136 rounded-md border border-[#e2e4ea] bg-[#f1f2f7] dark:border-[#2a2d36] dark:bg-[#1d2029]"
           >
             <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
               <span>{status}</span>
@@ -807,7 +861,7 @@ function IssueDetail({
           <Separator className="my-4" />
           <div className="space-y-3">
             {issue.comments.map((comment) => (
-              <div key={comment.id} className="flex gap-3">
+              <div key={comment.id} id={comment.id} className="flex gap-3">
                 <Avatar>
                   <AvatarFallback>{initials(comment.authorId)}</AvatarFallback>
                 </Avatar>

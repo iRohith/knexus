@@ -84,7 +84,7 @@ function comment(authorId: string, body: string, timestamp: number): MeetingComm
 function buildInitialSnapshot(): FirefliesSnapshot {
   const meetings: Record<string, Meeting> = {};
   const titles = [
-    "Replica planning review",
+    "App planning review",
     "Customer expansion sync",
     "Design critique",
     "Engineering standup",
@@ -113,7 +113,7 @@ function buildInitialSnapshot(): FirefliesSnapshot {
       summary:
         "The meeting covered current progress, blockers, ownership, and concrete follow-ups. Decisions were captured with enough context for async review.",
       topics: [
-        ["replicas", "quality"],
+        ["apps", "quality"],
         ["sales", "customer"],
         ["design", "accessibility"],
         ["infra", "release"],
@@ -125,7 +125,7 @@ function buildInitialSnapshot(): FirefliesSnapshot {
         timestamp: `00:${String(lineIndex * 3 + 1).padStart(2, "0")}`,
         text: [
           "Let us anchor this on the user-visible workflow first.",
-          "The mock data should include enough edge cases for smoke testing.",
+          "The default records should include enough edge cases for validation.",
           "I can take the follow-up and update the acceptance notes.",
           "The privacy reset behavior needs to be part of the definition of done.",
         ][lineIndex % 4],

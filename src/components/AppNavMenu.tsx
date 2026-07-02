@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Grid2X2 } from "lucide-react";
+import { ChevronDown, Grid2X2, ShieldCheck } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { FaSlack } from "react-icons/fa";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navItems = [
+  { label: "Admin", href: "/admin", icon: ShieldCheck },
   { label: "Gmail", href: "/gmail", icon: SiGmail },
   { label: "Slack", href: "/slack", icon: FaSlack },
   { label: "GitHub", href: "/github", icon: SiGithub },

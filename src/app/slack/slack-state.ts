@@ -126,7 +126,7 @@ const bodies = [
   "Morning update: the inbox polish pass is ready for review. I left notes on keyboard focus and empty states.",
   "Can someone sanity-check the launch checklist before standup?",
   "The customer call surfaced two follow-ups: permissions audit and export copy.",
-  "I pushed a fixture update so account switching has more realistic cross-user activity.",
+  "I updated the sample activity so account switching has more realistic cross-user context.",
   "Heads up, the prototype now keeps detail views URL-backed without leaking stale state.",
   "The board looks clean. Only blocker is attachment preview copy.",
   "I added a short decision log to keep the thread readable later.",
@@ -212,7 +212,7 @@ function buildInitialSnapshot(): SlackSnapshot {
         authorId,
         body:
           index % 3 === 0
-            ? "Quick sync: I sent you the latest mock data notes."
+            ? "Quick sync: I sent you the latest sample data notes."
             : bodies[(index + dmIndex + 2) % bodies.length],
         timestamp: now - (dmIndex * 16 + index) * 23 * 60 * 1000,
         edited: false,

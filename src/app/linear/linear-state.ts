@@ -127,7 +127,7 @@ function buildInitialSnapshot(): LinearSnapshot {
       id: "core",
       key: "COR",
       name: "Core Product",
-      description: "Replica fidelity, navigation, and shared shell.",
+      description: "App fidelity, navigation, and shared shell.",
       memberIds: ["riley", "maya", "ari"],
     },
     design: {
@@ -148,10 +148,10 @@ function buildInitialSnapshot(): LinearSnapshot {
   const projects: Record<string, LinearProject> = {};
   const cycles: Record<string, LinearCycle> = {};
   Object.values(teams).forEach((team, index) => {
-    projects[`${team.id}-replicas`] = {
-      id: `${team.id}-replicas`,
+    projects[`${team.id}-apps`] = {
+      id: `${team.id}-apps`,
       teamId: team.id,
-      name: "App replicas",
+      name: "Core Apps",
       targetDate: "2026-07-22",
       health: index === 2 ? "At risk" : "On track",
     };
@@ -180,7 +180,7 @@ function buildInitialSnapshot(): LinearSnapshot {
 
   const titles = [
     "Tighten URL state when switching accounts",
-    "Build realistic command palette fixtures",
+    "Build realistic command palette sample data",
     "Add list density controls for issue rows",
     "Fix board card overflow on mobile",
     "Improve empty states for filtered views",
@@ -198,7 +198,7 @@ function buildInitialSnapshot(): LinearSnapshot {
       const status = linearStatuses[(index + teamIndex) % linearStatuses.length];
       const creatorId = team.memberIds[(index + teamIndex) % team.memberIds.length];
       const assigneeId = team.memberIds[(index + 1) % team.memberIds.length];
-      const projectId = index % 2 === 0 ? `${team.id}-replicas` : `${team.id}-quality`;
+      const projectId = index % 2 === 0 ? `${team.id}-apps` : `${team.id}-quality`;
       const cycleId = index % 3 === 0 ? `${team.id}-cycle-2` : `${team.id}-cycle-1`;
       const comments =
         index % 4 === 0
@@ -219,7 +219,7 @@ function buildInitialSnapshot(): LinearSnapshot {
         identifier: `${team.key}-${index + 1}`,
         title: titles[(index + teamIndex) % titles.length],
         description:
-          "Keep this scoped to product behavior, keyboard access, and realistic mock state.",
+          "Keep this scoped to product behavior, keyboard access, and realistic initial state.",
         status,
         priority: linearPriorities[(index + teamIndex) % linearPriorities.length],
         assigneeId,

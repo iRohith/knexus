@@ -38,6 +38,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { appUsers } from "@/lib/users";
 import { useActiveUser } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
@@ -338,6 +339,18 @@ export function HubSpotApp({
                 onBack={() => updateUrl({ contact: null })}
                 onNote={() => {
                   addContactNote(selectedContact.id, activeUser.id, noteDraft);
+                  captureActivityEvent({
+                    sourceApp: "hubspot",
+                    actorId: activeUser.id,
+                    type: "crm_action",
+                    action: "Added HubSpot contact note",
+                    title: selectedContact.name,
+                    body: noteDraft,
+                    sourceEntityId: selectedContact.id,
+                    sourceEntityType: "contact",
+                    sourceUrl: `/hubspot?view=contacts&contact=${selectedContact.id}`,
+                    metadata: { companyId: selectedContact.companyId },
+                  });
                   setNoteDraft("");
                 }}
                 onUpdateContact={(updates) =>
@@ -361,6 +374,18 @@ export function HubSpotApp({
                         authorId: activeUser.id,
                       },
                     });
+                    captureActivityEvent({
+                      sourceApp: "hubspot",
+                      actorId: activeUser.id,
+                      type: "create",
+                      action: "Created HubSpot task",
+                      title,
+                      body: `Task created for ${selectedContact.name}.`,
+                      sourceEntityId: id,
+                      sourceEntityType: "task",
+                      sourceUrl: `/hubspot?view=tasks`,
+                      metadata: { contactId: selectedContact.id },
+                    });
                   }
                 }}
                 onCompany={(id) => updateUrl({ company: id })}
@@ -373,9 +398,38 @@ export function HubSpotApp({
                 noteDraft={noteDraft}
                 onNoteDraft={setNoteDraft}
                 onBack={() => updateUrl({ deal: null })}
-                onStage={(stage) => updateDealStage(selectedDeal.id, activeUser.id, stage)}
+                onStage={(stage) => {
+                  updateDealStage(selectedDeal.id, activeUser.id, stage);
+                  captureActivityEvent({
+                    sourceApp: "hubspot",
+                    actorId: activeUser.id,
+                    type: "crm_action",
+                    action: `Moved HubSpot deal to ${stage}`,
+                    title: selectedDeal.name,
+                    body: `Deal stage changed to ${stage}.`,
+                    sourceEntityId: selectedDeal.id,
+                    sourceEntityType: "deal",
+                    sourceUrl: `/hubspot?view=deals&deal=${selectedDeal.id}`,
+                    metadata: { stage, companyId: selectedDeal.companyId },
+                  });
+                }}
                 onNote={() => {
                   addDealNote(selectedDeal.id, activeUser.id, noteDraft);
+                  captureActivityEvent({
+                    sourceApp: "hubspot",
+                    actorId: activeUser.id,
+                    type: "crm_action",
+                    action: "Added HubSpot deal note",
+                    title: selectedDeal.name,
+                    body: noteDraft,
+                    sourceEntityId: selectedDeal.id,
+                    sourceEntityType: "deal",
+                    sourceUrl: `/hubspot?view=deals&deal=${selectedDeal.id}`,
+                    metadata: {
+                      companyId: selectedDeal.companyId,
+                      contactId: selectedDeal.contactId,
+                    },
+                  });
                   setNoteDraft("");
                 }}
                 onUpdateDeal={(updates) => updateDeal(selectedDeal.id, activeUser.id, updates)}
@@ -406,13 +460,43 @@ export function HubSpotApp({
                 companies={companies}
                 contacts={contacts}
                 onOpen={(id) => updateUrl({ deal: id })}
-                onStage={(id, stage) => updateDealStage(id, activeUser.id, stage)}
+                onStage={(id, stage) => {
+                  updateDealStage(id, activeUser.id, stage);
+                  const deal = deals[id];
+                  captureActivityEvent({
+                    sourceApp: "hubspot",
+                    actorId: activeUser.id,
+                    type: "crm_action",
+                    action: `Moved HubSpot deal to ${stage}`,
+                    title: deal?.name ?? "HubSpot deal moved",
+                    body: `Deal stage changed to ${stage}.`,
+                    sourceEntityId: id,
+                    sourceEntityType: "deal",
+                    sourceUrl: `/hubspot?view=deals&deal=${id}`,
+                    metadata: { stage, companyId: deal?.companyId ?? null },
+                  });
+                }}
               />
             ) : view === "tasks" ? (
               <TaskList
                 tasks={visibleTasks}
                 contacts={contacts}
-                onToggle={(id) => toggleTask(id, activeUser.id)}
+                onToggle={(id) => {
+                  toggleTask(id, activeUser.id);
+                  const task = tasks[id];
+                  captureActivityEvent({
+                    sourceApp: "hubspot",
+                    actorId: activeUser.id,
+                    type: "update",
+                    action: "Toggled HubSpot task",
+                    title: task?.title ?? "HubSpot task updated",
+                    body: `Task marked ${task?.completed ? "open" : "complete"}.`,
+                    sourceEntityId: id,
+                    sourceEntityType: "task",
+                    sourceUrl: "/hubspot?view=tasks",
+                    metadata: { contactId: task?.contactId ?? null },
+                  });
+                }}
               />
             ) : (
               <ContactList
@@ -436,6 +520,18 @@ export function HubSpotApp({
               type: "CREATE_CONTACT",
               payload: { id, ...input, authorId: activeUser.id },
             });
+            captureActivityEvent({
+              sourceApp: "hubspot",
+              actorId: activeUser.id,
+              type: "create",
+              action: "Created HubSpot contact",
+              title: input.name,
+              body: `${input.name} was added to HubSpot.`,
+              sourceEntityId: id,
+              sourceEntityType: "contact",
+              sourceUrl: `/hubspot?view=contacts&contact=${id}`,
+              metadata: { companyId: input.companyId, email: input.email },
+            });
             updateUrl({ view: "contacts", contact: id, q: null });
           }
         }}
@@ -449,6 +545,22 @@ export function HubSpotApp({
           if (id) {
             setCreateDealOpen(false);
             onAction?.({ type: "CREATE_DEAL", payload: { id, ...input, authorId: activeUser.id } });
+            captureActivityEvent({
+              sourceApp: "hubspot",
+              actorId: activeUser.id,
+              type: "create",
+              action: "Created HubSpot deal",
+              title: input.name,
+              body: `${input.name} was added to the pipeline.`,
+              sourceEntityId: id,
+              sourceEntityType: "deal",
+              sourceUrl: `/hubspot?view=deals&deal=${id}`,
+              metadata: {
+                companyId: contacts[input.contactId]?.companyId ?? null,
+                contactId: input.contactId,
+                amount: input.amount,
+              },
+            });
             updateUrl({ view: "deals", deal: id, q: null });
           }
         }}
@@ -604,13 +716,13 @@ function DealsPipeline({
   onStage: (id: string, stage: DealStage) => void;
 }) {
   return (
-    <div className="grid min-w-[980px] gap-3 xl:min-w-0 xl:grid-cols-5">
+    <div className="grid min-w-245 gap-3 xl:min-w-0 xl:grid-cols-5">
       {dealStages.map((stage) => {
         const columnDeals = deals.filter((deal) => deal.stage === stage);
         return (
           <section
             key={stage}
-            className="min-h-[34rem] rounded-md border border-[#d5e1ea] bg-[#eaf0f6] dark:border-[#263445] dark:bg-[#1d2a3a]"
+            className="min-h-136 rounded-md border border-[#d5e1ea] bg-[#eaf0f6] dark:border-[#263445] dark:bg-[#1d2a3a]"
           >
             <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
               <span>{stage}</span>
@@ -1010,7 +1122,7 @@ function Notes({
     <div>
       <div className="space-y-3">
         {notes.map((note) => (
-          <div key={note.id} className="flex gap-3">
+          <div key={note.id} id={note.id} className="flex gap-3">
             <Avatar>
               <AvatarFallback>{initials(note.authorId)}</AvatarFallback>
             </Avatar>

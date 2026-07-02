@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,7 @@ export function SlackApp({
   const channelParam = searchParams.get("channel");
   const dmParam = searchParams.get("dm");
   const threadId = searchParams.get("thread");
+  const messageId = searchParams.get("message");
   const query = searchParams.get("q") ?? "";
   const fallbackChannel = firstAccessibleChannel(channels, activeUser.id) ?? "team-updates";
   const surfaceType: "channel" | "dm" =
@@ -190,6 +192,19 @@ export function SlackApp({
         .sort((a, b) => a.timestamp - b.timestamp),
     [messages, threadId],
   );
+
+  useEffect(() => {
+    if (!messageId) return;
+    window.setTimeout(() => {
+      const element = document.getElementById(messageId);
+      if (!element) return;
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.classList.add("ring-2", "ring-blue-400", "ring-offset-2");
+      window.setTimeout(() => {
+        element.classList.remove("ring-2", "ring-blue-400", "ring-offset-2");
+      }, 2200);
+    }, 100);
+  }, [messageId, surfaceId, threadId, surfaceMessages.length, threadReplies.length]);
   const unreadBySurface = useMemo(() => {
     const counts: Record<string, number> = {};
     Object.values(messages).forEach((message) => {
@@ -222,6 +237,22 @@ export function SlackApp({
       onAction?.({
         type: "SEND_MESSAGE",
         payload: { id, surfaceType, surfaceId, authorId: activeUser.id, body: draft, attachments },
+      });
+      captureActivityEvent({
+        sourceApp: "slack",
+        actorId: activeUser.id,
+        type: "message",
+        action: surfaceType === "channel" ? "Posted channel message" : "Sent direct message",
+        title: `Slack ${surfaceType === "channel" ? currentTitle : "direct message"}`,
+        body:
+          draft || `${attachments.length} attachment${attachments.length === 1 ? "" : "s"} sent`,
+        sourceEntityId: id,
+        sourceEntityType: surfaceType === "channel" ? "channel_message" : "direct_message",
+        sourceUrl:
+          surfaceType === "channel"
+            ? `/slack?channel=${surfaceId}&message=${id}#${id}`
+            : `/slack?dm=${surfaceId}&message=${id}#${id}`,
+        metadata: { surfaceType, surfaceId, attachmentCount: attachments.length },
       });
     }
     if (!id) {
@@ -258,6 +289,28 @@ export function SlackApp({
           attachments: threadAttachments,
         },
       });
+      captureActivityEvent({
+        sourceApp: "slack",
+        actorId: activeUser.id,
+        type: "reply",
+        action: "Replied in Slack thread",
+        title: `Thread reply in ${currentTitle}`,
+        body:
+          threadDraft ||
+          `${threadAttachments.length} attachment${threadAttachments.length === 1 ? "" : "s"} sent`,
+        sourceEntityId: id,
+        sourceEntityType: "thread_reply",
+        sourceUrl:
+          threadParent.surfaceType === "channel"
+            ? `/slack?channel=${threadParent.surfaceId}&thread=${threadParent.id}&message=${id}#${id}`
+            : `/slack?dm=${threadParent.surfaceId}&thread=${threadParent.id}&message=${id}#${id}`,
+        metadata: {
+          surfaceType: threadParent.surfaceType,
+          surfaceId: threadParent.surfaceId,
+          threadParentId: threadParent.id,
+          attachmentCount: threadAttachments.length,
+        },
+      });
     }
     if (!id) {
       toast.error("Reply could not be sent");
@@ -284,7 +337,7 @@ export function SlackApp({
         setSidebarOpen(false);
       }}
       onDm={(id) => {
-        updateUrl({ dm: id, channel: null, thread: null, q: null });
+        updateUrl({ dm: id, channel: null, thread: null, message: null, q: null });
         setSidebarOpen(false);
       }}
     />
@@ -401,7 +454,7 @@ export function SlackApp({
                           .length
                       }
                       activeUserId={activeUser.id}
-                      onThread={() => updateUrl({ thread: message.id })}
+                      onThread={() => updateUrl({ thread: message.id, message: null })}
                       onReact={(emoji) => toggleReaction(message.id, activeUser.id, emoji)}
                       onEdit={(body) => editMessage(message.id, activeUser.id, body)}
                       onDelete={() => deleteMessage(message.id, activeUser.id)}
@@ -487,7 +540,7 @@ export function SlackApp({
             userId: activeUser.id,
           },
         ) && (
-          <aside className="hidden w-[26rem] shrink-0 border-l bg-white text-foreground xl:flex xl:flex-col dark:border-white/10 dark:bg-[#1a1d21] dark:text-zinc-100">
+          <aside className="hidden w-104 shrink-0 border-l bg-white text-foreground xl:flex xl:flex-col dark:border-white/10 dark:bg-[#1a1d21] dark:text-zinc-100">
             <div className="flex h-14 items-center justify-between border-b px-4 dark:border-white/10">
               <div>
                 <div className="font-semibold">Thread</div>
@@ -497,7 +550,7 @@ export function SlackApp({
                 variant="ghost"
                 size="icon-sm"
                 className="cursor-pointer"
-                onClick={() => updateUrl({ thread: null })}
+                onClick={() => updateUrl({ thread: null, message: null })}
               >
                 <X />
               </Button>
@@ -625,6 +678,18 @@ export function SlackApp({
                     description: channelDesc,
                     authorId: activeUser.id,
                   },
+                });
+                captureActivityEvent({
+                  sourceApp: "slack",
+                  actorId: activeUser.id,
+                  type: "create",
+                  action: "Created Slack channel",
+                  title: `Created #${channelName}`,
+                  body: channelDesc || "New Slack channel created.",
+                  sourceEntityId: id,
+                  sourceEntityType: "channel",
+                  sourceUrl: `/slack?channel=${id}`,
+                  metadata: { name: channelName, description: channelDesc },
                 });
                 setCreateChannelOpen(false);
                 setChannelName("");
@@ -788,7 +853,7 @@ function SlackSidebar({
     <div className="flex h-full flex-col">
       <div className="border-b border-white/10 p-4">
         <div className="text-base font-semibold">Corp OS</div>
-        <div className="mt-1 text-xs text-white/60">Slack workspace replica</div>
+        <div className="mt-1 text-xs text-white/60">Workspace</div>
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-3">
@@ -917,7 +982,7 @@ function SlackMessageRow({
   const own = message.authorId === activeUserId;
 
   return (
-    <div className="group flex gap-3 rounded-md px-2 py-2 hover:bg-muted/50">
+    <div id={message.id} className="group flex gap-3 rounded-md px-2 py-2 hover:bg-muted/50">
       <Avatar>
         <AvatarFallback className={cn("text-xs font-semibold", userColor(message.authorId))}>
           {userInitials(message.authorId)}

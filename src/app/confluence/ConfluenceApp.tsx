@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { appUsers } from "@/lib/users";
 import { useActiveUser } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
@@ -223,7 +224,21 @@ export function ConfluenceApp({
                 activeUserId={activeUser.id}
                 commentDraft={commentDraft}
                 onCommentDraft={setCommentDraft}
-                onSave={(title, body) => updatePage(selectedPage.id, activeUser.id, title, body)}
+                onSave={(title, body) => {
+                  updatePage(selectedPage.id, activeUser.id, title, body);
+                  captureActivityEvent({
+                    sourceApp: "confluence",
+                    actorId: activeUser.id,
+                    type: "update",
+                    action: "Updated Confluence page",
+                    title,
+                    body,
+                    sourceEntityId: selectedPage.id,
+                    sourceEntityType: "page",
+                    sourceUrl: `/confluence?space=${spaceId}&page=${selectedPage.id}`,
+                    metadata: { spaceId, labels: selectedPage.labels },
+                  });
+                }}
                 onWatch={() => toggleWatch(selectedPage.id, activeUser.id)}
                 onComment={() => {
                   addComment(selectedPage.id, activeUser.id, commentDraft);
@@ -234,6 +249,18 @@ export function ConfluenceApp({
                       authorId: activeUser.id,
                       content: commentDraft,
                     },
+                  });
+                  captureActivityEvent({
+                    sourceApp: "confluence",
+                    actorId: activeUser.id,
+                    type: "comment",
+                    action: "Commented on Confluence page",
+                    title: selectedPage.title,
+                    body: commentDraft,
+                    sourceEntityId: selectedPage.id,
+                    sourceEntityType: "page",
+                    sourceUrl: `/confluence?space=${spaceId}&page=${selectedPage.id}`,
+                    metadata: { spaceId, labels: selectedPage.labels },
                   });
                   setCommentDraft("");
                 }}
@@ -265,6 +292,18 @@ export function ConfluenceApp({
                 parentId: selectedPage?.id ?? null,
                 ...input,
               },
+            });
+            captureActivityEvent({
+              sourceApp: "confluence",
+              actorId: activeUser.id,
+              type: "create",
+              action: "Created Confluence page",
+              title: input.title,
+              body: input.body,
+              sourceEntityId: id,
+              sourceEntityType: "page",
+              sourceUrl: `/confluence?space=${spaceId}&page=${id}`,
+              metadata: { spaceId, parentId: selectedPage?.id ?? null, labels: input.labels },
             });
             updateUrl({ page: id, q: null });
           }
@@ -433,7 +472,7 @@ function PageDetail({
 
 function Comment({ comment }: { comment: ConfluenceComment }) {
   return (
-    <div className="flex gap-3">
+    <div id={comment.id} className="flex gap-3">
       <Avatar>
         <AvatarFallback>{initials(comment.authorId)}</AvatarFallback>
       </Avatar>

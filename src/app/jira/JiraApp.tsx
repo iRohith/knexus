@@ -45,6 +45,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { captureActivityEvent } from "@/app/admin/activity-capture";
 import { appUsers } from "@/lib/users";
 import { useActiveUser } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
@@ -337,7 +338,21 @@ export function JiraApp() {
                 commentDraft={commentDraft}
                 onCommentDraft={setCommentDraft}
                 onBack={() => updateUrl({ issue: null })}
-                onStatus={(status) => updateStatus(selectedIssue.id, activeUser.id, status)}
+                onStatus={(status) => {
+                  updateStatus(selectedIssue.id, activeUser.id, status);
+                  captureActivityEvent({
+                    sourceApp: "jira",
+                    actorId: activeUser.id,
+                    type: "status_change",
+                    action: `Transitioned Jira issue to ${status}`,
+                    title: selectedIssue.summary,
+                    body: `${selectedIssue.key} changed status to ${status}.`,
+                    sourceEntityId: selectedIssue.id,
+                    sourceEntityType: "issue",
+                    sourceUrl: `/jira?project=${projectId}&view=board&issue=${selectedIssue.id}`,
+                    metadata: { projectId, status, key: selectedIssue.key },
+                  });
+                }}
                 onAssignee={(assigneeId) =>
                   updateAssignee(selectedIssue.id, activeUser.id, assigneeId)
                 }
@@ -355,6 +370,18 @@ export function JiraApp() {
                 }
                 onComment={() => {
                   addComment(selectedIssue.id, activeUser.id, commentDraft);
+                  captureActivityEvent({
+                    sourceApp: "jira",
+                    actorId: activeUser.id,
+                    type: "comment",
+                    action: "Commented on Jira issue",
+                    title: selectedIssue.summary,
+                    body: commentDraft,
+                    sourceEntityId: selectedIssue.id,
+                    sourceEntityType: "issue",
+                    sourceUrl: `/jira?project=${projectId}&view=board&issue=${selectedIssue.id}`,
+                    metadata: { projectId, key: selectedIssue.key },
+                  });
                   setCommentDraft("");
                 }}
               />
@@ -362,14 +389,44 @@ export function JiraApp() {
               <BoardView
                 issues={projectIssues}
                 onOpen={(id) => updateUrl({ issue: id })}
-                onStatus={(id, status) => updateStatus(id, activeUser.id, status)}
+                onStatus={(id, status) => {
+                  updateStatus(id, activeUser.id, status);
+                  const issue = issues[id];
+                  captureActivityEvent({
+                    sourceApp: "jira",
+                    actorId: activeUser.id,
+                    type: "status_change",
+                    action: `Transitioned Jira issue to ${status}`,
+                    title: issue?.summary ?? "Jira issue transitioned",
+                    body: `${issue?.key ?? id} changed status to ${status}.`,
+                    sourceEntityId: id,
+                    sourceEntityType: "issue",
+                    sourceUrl: `/jira?project=${projectId}&view=board&issue=${id}`,
+                    metadata: { projectId, status, key: issue?.key ?? id },
+                  });
+                }}
               />
             ) : (
               <BacklogView
                 issues={projectIssues}
                 project={project}
                 onOpen={(id) => updateUrl({ issue: id })}
-                onStatus={(id, status) => updateStatus(id, activeUser.id, status)}
+                onStatus={(id, status) => {
+                  updateStatus(id, activeUser.id, status);
+                  const issue = issues[id];
+                  captureActivityEvent({
+                    sourceApp: "jira",
+                    actorId: activeUser.id,
+                    type: "status_change",
+                    action: `Transitioned Jira issue to ${status}`,
+                    title: issue?.summary ?? "Jira issue transitioned",
+                    body: `${issue?.key ?? id} changed status to ${status}.`,
+                    sourceEntityId: id,
+                    sourceEntityType: "issue",
+                    sourceUrl: `/jira?project=${projectId}&view=backlog&issue=${id}`,
+                    metadata: { projectId, status, key: issue?.key ?? id },
+                  });
+                }}
                 onAssignee={(id, assigneeId) => updateAssignee(id, activeUser.id, assigneeId)}
                 onPriority={(id, priority) => updatePriority(id, activeUser.id, priority)}
               />
@@ -386,6 +443,18 @@ export function JiraApp() {
         onCreate={(input) => {
           const created = createIssue({ ...input, projectId, actorId: activeUser.id });
           if (!created) return;
+          captureActivityEvent({
+            sourceApp: "jira",
+            actorId: activeUser.id,
+            type: "create",
+            action: "Created Jira issue",
+            title: input.summary,
+            body: input.description || "New Jira issue created.",
+            sourceEntityId: created,
+            sourceEntityType: "issue",
+            sourceUrl: `/jira?project=${projectId}&view=board&issue=${created}`,
+            metadata: { projectId, priority: input.priority, type: input.type },
+          });
           setCreateOpen(false);
           updateUrl({ issue: created, view: "board", q: null, status: null, assignee: null });
         }}
@@ -534,13 +603,13 @@ function BoardView({
   onStatus: (id: string, status: JiraStatus) => void;
 }) {
   return (
-    <div className="grid min-w-[980px] gap-3 xl:min-w-0 xl:grid-cols-5">
+    <div className="grid min-w-245 gap-3 xl:min-w-0 xl:grid-cols-5">
       {jiraStatuses.map((status) => {
         const columnIssues = issues.filter((issue) => issue.status === status);
         return (
           <section
             key={status}
-            className="min-h-[34rem] rounded-md border border-[#dfe1e6] bg-[#f1f2f4] dark:border-[#2c333a] dark:bg-[#1d2125]"
+            className="min-h-136 rounded-md border border-[#dfe1e6] bg-[#f1f2f4] dark:border-[#2c333a] dark:bg-[#1d2125]"
           >
             <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <span>{status}</span>
@@ -810,7 +879,7 @@ function IssueDetail({
           <Separator className="my-4" />
           <div className="space-y-3">
             {issue.comments.map((comment) => (
-              <div key={comment.id} className="flex gap-3">
+              <div key={comment.id} id={comment.id} className="flex gap-3">
                 <Avatar>
                   <AvatarFallback>{userInitials(comment.authorId)}</AvatarFallback>
                 </Avatar>
@@ -897,7 +966,7 @@ function IssueDetail({
             </div>
             <Input
               type="date"
-              className="h-7 w-[120px] px-2 py-1 text-xs"
+              className="h-7 w-30 px-2 py-1 text-xs"
               value={issue.dueDate}
               onChange={(e) => onDueDate(e.target.value)}
             />
@@ -908,7 +977,7 @@ function IssueDetail({
               Sprint
             </div>
             <Input
-              className="h-7 w-[120px] px-2 py-1 text-xs"
+              className="h-7 w-30 px-2 py-1 text-xs"
               value={issue.sprint}
               onChange={(e) => onSprint(e.target.value)}
             />
