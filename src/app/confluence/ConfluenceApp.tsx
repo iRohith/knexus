@@ -40,7 +40,9 @@ function initials(id: string) {
   return appUsers.find((user) => user.id === id)?.initials ?? "??";
 }
 
-export function ConfluenceApp() {
+export function ConfluenceApp({
+  onAction,
+}: { onAction?: (action: { type: string; payload: unknown }) => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -225,6 +227,14 @@ export function ConfluenceApp() {
                 onWatch={() => toggleWatch(selectedPage.id, activeUser.id)}
                 onComment={() => {
                   addComment(selectedPage.id, activeUser.id, commentDraft);
+                  onAction?.({
+                    type: "CREATE_COMMENT",
+                    payload: {
+                      pageId: selectedPage.id,
+                      authorId: activeUser.id,
+                      content: commentDraft,
+                    },
+                  });
                   setCommentDraft("");
                 }}
               />
@@ -246,6 +256,16 @@ export function ConfluenceApp() {
           });
           if (id) {
             setCreateOpen(false);
+            onAction?.({
+              type: "CREATE_PAGE",
+              payload: {
+                id,
+                spaceId,
+                actorId: activeUser.id,
+                parentId: selectedPage?.id ?? null,
+                ...input,
+              },
+            });
             updateUrl({ page: id, q: null });
           }
         }}

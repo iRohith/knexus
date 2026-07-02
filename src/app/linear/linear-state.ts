@@ -84,6 +84,9 @@ export type LinearState = LinearSnapshot & {
   updatePriority: (issueId: string, actorId: string, priority: LinearPriority) => void;
   updateAssignee: (issueId: string, actorId: string, assigneeId: string | null) => void;
   updateCycle: (issueId: string, actorId: string, cycleId: string) => void;
+  updateProject: (issueId: string, actorId: string, projectId: string) => void;
+  updateEstimate: (issueId: string, actorId: string, estimate: number | null) => void;
+  updateLabels: (issueId: string, actorId: string, labels: string[]) => void;
   toggleSubscriber: (issueId: string, actorId: string) => void;
   addComment: (issueId: string, actorId: string, body: string) => void;
 };
@@ -389,6 +392,39 @@ export const useLinearStore = create<LinearState>((set) => ({
         cycleId: state.cycles[cycleId]?.teamId === issue.teamId ? cycleId : issue.cycleId,
         updatedAt: timestamp,
         activity: [...issue.activity, note(actorId, "changed cycle", timestamp)],
+      })),
+    );
+  },
+  updateProject: (issueId, actorId, projectId) => {
+    set((state) =>
+      mutateIssue(state, issueId, actorId, (issue, timestamp) => ({
+        ...issue,
+        projectId: state.projects[projectId]?.teamId === issue.teamId ? projectId : issue.projectId,
+        updatedAt: timestamp,
+        activity: [...issue.activity, note(actorId, "changed project", timestamp)],
+      })),
+    );
+  },
+  updateEstimate: (issueId, actorId, estimate) => {
+    set((state) =>
+      mutateIssue(state, issueId, actorId, (issue, timestamp) => ({
+        ...issue,
+        estimate,
+        updatedAt: timestamp,
+        activity: [
+          ...issue.activity,
+          note(actorId, `changed estimate to ${estimate || "none"}`, timestamp),
+        ],
+      })),
+    );
+  },
+  updateLabels: (issueId, actorId, labels) => {
+    set((state) =>
+      mutateIssue(state, issueId, actorId, (issue, timestamp) => ({
+        ...issue,
+        labels,
+        updatedAt: timestamp,
+        activity: [...issue.activity, note(actorId, "updated labels", timestamp)],
       })),
     );
   },

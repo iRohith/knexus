@@ -55,6 +55,13 @@ export type FirefliesState = FirefliesSnapshot & {
     summary: string;
     topics: string[];
   }) => string;
+  updateMeetingText: (
+    meetingId: string,
+    actorId: string,
+    summary: string,
+    topics: string[],
+  ) => void;
+  addActionItem: (meetingId: string, actorId: string, text: string, ownerId: string) => void;
   toggleActionItem: (meetingId: string, actionId: string, actorId: string) => void;
   addComment: (meetingId: string, actorId: string, body: string) => void;
   shareMeeting: (meetingId: string, actorId: string, userId: string) => void;
@@ -210,6 +217,42 @@ export const useFirefliesStore = create<FirefliesState>((set) => ({
       };
     });
     return id;
+  },
+  updateMeetingText: (meetingId, actorId, summary, topics) => {
+    set((state) => {
+      const meeting = state.meetings[meetingId];
+      if (!canAccessMeeting(meeting, actorId)) return state;
+      return {
+        meetings: {
+          ...state.meetings,
+          [meetingId]: {
+            ...meeting,
+            summary: summary.trim(),
+            topics: topics.map((t) => t.trim()).filter(Boolean),
+            updatedAt: Date.now(),
+          },
+        },
+      };
+    });
+  },
+  addActionItem: (meetingId, actorId, text, ownerId) => {
+    set((state) => {
+      const meeting = state.meetings[meetingId];
+      if (!canAccessMeeting(meeting, actorId)) return state;
+      return {
+        meetings: {
+          ...state.meetings,
+          [meetingId]: {
+            ...meeting,
+            actionItems: [
+              ...meeting.actionItems,
+              { id: makeId("action"), ownerId, text: text.trim(), completed: false },
+            ],
+            updatedAt: Date.now(),
+          },
+        },
+      };
+    });
   },
   toggleActionItem: (meetingId, actionId, actorId) => {
     set((state) => {

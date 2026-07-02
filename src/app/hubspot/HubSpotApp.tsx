@@ -5,12 +5,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Building2,
   CheckCircle2,
+  Circle,
   CircleDollarSign,
   ClipboardCheck,
-  Mail,
   Menu,
   MessageSquare,
-  Phone,
   Plus,
   Search,
   UserRound,
@@ -83,7 +82,9 @@ function money(amount: number) {
   }).format(amount);
 }
 
-export function HubSpotApp() {
+export function HubSpotApp({
+  onAction,
+}: { onAction?: (action: { type: string; payload: unknown }) => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -94,7 +95,10 @@ export function HubSpotApp() {
   const tasks = useHubSpotStore((state) => state.tasks);
   const createContact = useHubSpotStore((state) => state.createContact);
   const createDeal = useHubSpotStore((state) => state.createDeal);
+  const updateContact = useHubSpotStore((state) => state.updateContact);
+  const updateDeal = useHubSpotStore((state) => state.updateDeal);
   const updateDealStage = useHubSpotStore((state) => state.updateDealStage);
+  const createTask = useHubSpotStore((state) => state.createTask);
   const toggleTask = useHubSpotStore((state) => state.toggleTask);
   const addContactNote = useHubSpotStore((state) => state.addContactNote);
   const addDealNote = useHubSpotStore((state) => state.addDealNote);
@@ -115,6 +119,7 @@ export function HubSpotApp() {
   const view = normalizeView(searchParams.get("view"));
   const contactId = searchParams.get("contact");
   const dealId = searchParams.get("deal");
+  const companyId = searchParams.get("company");
   const query = searchParams.get("q") ?? "";
   const stageFilter = searchParams.get("stage") ?? "all";
   const normalizedQuery = query.trim().toLowerCase();
@@ -335,6 +340,30 @@ export function HubSpotApp() {
                   addContactNote(selectedContact.id, activeUser.id, noteDraft);
                   setNoteDraft("");
                 }}
+                onUpdateContact={(updates) =>
+                  updateContact(selectedContact.id, activeUser.id, updates)
+                }
+                onCreateTask={(title) => {
+                  const id = createTask({
+                    actorId: activeUser.id,
+                    contactId: selectedContact.id,
+                    title,
+                    dueDate: "2026-07-22",
+                    priority: "Medium",
+                  });
+                  if (id) {
+                    onAction?.({
+                      type: "CREATE_TASK",
+                      payload: {
+                        id,
+                        contactId: selectedContact.id,
+                        title,
+                        authorId: activeUser.id,
+                      },
+                    });
+                  }
+                }}
+                onCompany={(id) => updateUrl({ company: id })}
               />
             ) : selectedDeal ? (
               <DealDetail
@@ -348,6 +377,27 @@ export function HubSpotApp() {
                 onNote={() => {
                   addDealNote(selectedDeal.id, activeUser.id, noteDraft);
                   setNoteDraft("");
+                }}
+                onUpdateDeal={(updates) => updateDeal(selectedDeal.id, activeUser.id, updates)}
+                onCreateTask={(title) => {
+                  const id = createTask({
+                    actorId: activeUser.id,
+                    contactId: selectedDeal.contactId,
+                    title,
+                    dueDate: "2026-07-22",
+                    priority: "Medium",
+                  });
+                  if (id) {
+                    onAction?.({
+                      type: "CREATE_TASK",
+                      payload: {
+                        id,
+                        contactId: selectedDeal.contactId,
+                        title,
+                        authorId: activeUser.id,
+                      },
+                    });
+                  }
                 }}
               />
             ) : view === "deals" ? (
@@ -382,6 +432,10 @@ export function HubSpotApp() {
           const id = createContact({ ...input, actorId: activeUser.id });
           if (id) {
             setCreateContactOpen(false);
+            onAction?.({
+              type: "CREATE_CONTACT",
+              payload: { id, ...input, authorId: activeUser.id },
+            });
             updateUrl({ view: "contacts", contact: id, q: null });
           }
         }}
@@ -394,10 +448,18 @@ export function HubSpotApp() {
           const id = createDeal({ ...input, actorId: activeUser.id });
           if (id) {
             setCreateDealOpen(false);
+            onAction?.({ type: "CREATE_DEAL", payload: { id, ...input, authorId: activeUser.id } });
             updateUrl({ view: "deals", deal: id, q: null });
           }
         }}
       />
+      {companyId && companies[companyId] && (
+        <CompanyDetailDialog
+          open
+          company={companies[companyId]}
+          onOpenChange={(open) => !open && updateUrl({ company: null })}
+        />
+      )}
     </main>
   );
 }
@@ -464,10 +526,12 @@ function MiniSelect({
   value,
   items,
   onValueChange,
+  renderItem,
 }: {
   value: string;
   items: string[];
   onValueChange: (value: string | null) => void;
+  renderItem?: (item: string) => string;
 }) {
   return (
     <Select value={value} onValueChange={onValueChange}>
@@ -477,7 +541,7 @@ function MiniSelect({
       <SelectContent>
         {items.map((item) => (
           <SelectItem key={item} value={item}>
-            {item === "all" ? "All stages" : item}
+            {item === "all" ? "All stages" : renderItem ? renderItem(item) : item}
           </SelectItem>
         ))}
       </SelectContent>
@@ -572,19 +636,13 @@ function DealsPipeline({
                       <AvatarFallback>{initials(deal.ownerId)}</AvatarFallback>
                     </Avatar>
                   </div>
-                  {stage !== "Closed Won" && (
-                    <Button
-                      className="mt-2 h-7 w-full cursor-pointer text-[11px]"
-                      variant="outline"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onStage(deal.id, "Closed Won");
-                      }}
-                    >
-                      Close won
-                    </Button>
-                  )}
+                  <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                    <MiniSelect
+                      value={stage}
+                      items={dealStages}
+                      onValueChange={(val) => val && onStage(deal.id, val as DealStage)}
+                    />
+                  </div>
                 </button>
               ))}
             </div>
@@ -644,6 +702,9 @@ function ContactDetail({
   onNoteDraft,
   onBack,
   onNote,
+  onUpdateContact,
+  onCreateTask,
+  onCompany,
 }: {
   contact: Contact;
   companies: Record<string, Company>;
@@ -652,7 +713,13 @@ function ContactDetail({
   onNoteDraft: (value: string) => void;
   onBack: () => void;
   onNote: () => void;
+  onUpdateContact: (
+    updates: Partial<Pick<Contact, "stage" | "ownerId" | "title" | "email" | "phone">>,
+  ) => void;
+  onCreateTask: (title: string) => void;
+  onCompany: (companyId: string) => void;
 }) {
+  const [taskDraft, setTaskDraft] = useState("");
   const relatedDeals = deals.filter((deal) => deal.contactId === contact.id);
   return (
     <DetailShell
@@ -681,21 +748,84 @@ function ContactDetail({
             ))}
           </Panel>
         </div>
-        <Panel title="Contact properties">
-          <Info icon={<Mail className="size-4" />} label="Email" value={contact.email} />
-          <Info icon={<Phone className="size-4" />} label="Phone" value={contact.phone} />
-          <Info
-            icon={<Building2 className="size-4" />}
-            label="Company"
-            value={companies[contact.companyId]?.name ?? ""}
-          />
-          <Info
-            icon={<UserRound className="size-4" />}
-            label="Owner"
-            value={userName(contact.ownerId)}
-          />
-          <Badge variant="secondary">{contact.stage}</Badge>
-        </Panel>
+        <div className="space-y-4">
+          <Panel title="Contact properties">
+            <Field label="Stage">
+              <MiniSelect
+                value={contact.stage}
+                items={lifecycleStages}
+                onValueChange={(val) => val && onUpdateContact({ stage: val as LifecycleStage })}
+              />
+            </Field>
+            <Field label="Email">
+              <Input
+                value={contact.email}
+                onChange={(e) => onUpdateContact({ email: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </Field>
+            <Field label="Phone">
+              <Input
+                value={contact.phone}
+                onChange={(e) => onUpdateContact({ phone: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </Field>
+            <Field label="Title">
+              <Input
+                value={contact.title}
+                onChange={(e) => onUpdateContact({ title: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </Field>
+            <Field label="Owner">
+              <MiniSelect
+                value={contact.ownerId}
+                items={companies[contact.companyId]?.memberIds || []}
+                onValueChange={(val) => val && onUpdateContact({ ownerId: val })}
+                renderItem={userName}
+              />
+            </Field>
+            <button
+              className="mt-3 flex items-center gap-2 text-sm text-left hover:text-[#ff5c35] cursor-pointer w-full"
+              onClick={() => onCompany(contact.companyId)}
+              type="button"
+            >
+              <span className="text-muted-foreground">
+                <Building2 className="size-4" />
+              </span>
+              <span className="w-16 text-muted-foreground">Company</span>
+              <span className="min-w-0 flex-1 truncate">{companies[contact.companyId]?.name}</span>
+            </button>
+          </Panel>
+          <Panel title="Tasks">
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (taskDraft.trim()) {
+                  onCreateTask(taskDraft);
+                  setTaskDraft("");
+                }
+              }}
+            >
+              <Input
+                placeholder="New task..."
+                value={taskDraft}
+                onChange={(e) => setTaskDraft(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <Button
+                size="sm"
+                className="h-8 cursor-pointer"
+                type="submit"
+                disabled={!taskDraft.trim()}
+              >
+                Add
+              </Button>
+            </form>
+          </Panel>
+        </div>
       </div>
     </DetailShell>
   );
@@ -710,6 +840,8 @@ function DealDetail({
   onBack,
   onStage,
   onNote,
+  onUpdateDeal,
+  onCreateTask,
 }: {
   deal: Deal;
   companies: Record<string, Company>;
@@ -719,7 +851,12 @@ function DealDetail({
   onBack: () => void;
   onStage: (stage: DealStage) => void;
   onNote: () => void;
+  onUpdateDeal: (
+    updates: Partial<Pick<Deal, "amount" | "probability" | "closeDate" | "ownerId">>,
+  ) => void;
+  onCreateTask: (title: string) => void;
 }) {
+  const [taskDraft, setTaskDraft] = useState("");
   return (
     <DetailShell
       title={deal.name}
@@ -730,31 +867,76 @@ function DealDetail({
         <Panel title="Deal notes">
           <Notes notes={deal.notes} draft={noteDraft} onDraft={onNoteDraft} onSubmit={onNote} />
         </Panel>
-        <Panel title="Deal properties">
-          <Field label="Stage">
-            <MiniSelect
-              value={deal.stage}
-              items={dealStages}
-              onValueChange={(value) => value && onStage(value as DealStage)}
-            />
-          </Field>
-          <Info
-            icon={<CircleDollarSign className="size-4" />}
-            label="Amount"
-            value={money(deal.amount)}
-          />
-          <Info
-            icon={<UserRound className="size-4" />}
-            label="Owner"
-            value={userName(deal.ownerId)}
-          />
-          <Info
-            icon={<CheckCircle2 className="size-4" />}
-            label="Probability"
-            value={`${deal.probability}%`}
-          />
-          <Info icon={<ClipboardCheck className="size-4" />} label="Close" value={deal.closeDate} />
-        </Panel>
+        <div className="space-y-4">
+          <Panel title="Deal properties">
+            <Field label="Stage">
+              <MiniSelect
+                value={deal.stage}
+                items={dealStages}
+                onValueChange={(value) => value && onStage(value as DealStage)}
+              />
+            </Field>
+            <Field label="Amount ($)">
+              <Input
+                type="number"
+                value={deal.amount}
+                onChange={(e) => onUpdateDeal({ amount: parseInt(e.target.value) || 0 })}
+                className="h-8 text-xs"
+              />
+            </Field>
+            <Field label="Probability (%)">
+              <Input
+                type="number"
+                value={deal.probability}
+                onChange={(e) => onUpdateDeal({ probability: parseInt(e.target.value) || 0 })}
+                className="h-8 text-xs"
+              />
+            </Field>
+            <Field label="Close date">
+              <Input
+                type="date"
+                value={deal.closeDate}
+                onChange={(e) => onUpdateDeal({ closeDate: e.target.value })}
+                className="h-8 text-xs"
+              />
+            </Field>
+            <Field label="Owner">
+              <MiniSelect
+                value={deal.ownerId}
+                items={companies[deal.companyId]?.memberIds || []}
+                onValueChange={(val) => val && onUpdateDeal({ ownerId: val })}
+                renderItem={userName}
+              />
+            </Field>
+          </Panel>
+          <Panel title="Tasks">
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (taskDraft.trim()) {
+                  onCreateTask(taskDraft);
+                  setTaskDraft("");
+                }
+              }}
+            >
+              <Input
+                placeholder="New task..."
+                value={taskDraft}
+                onChange={(e) => setTaskDraft(e.target.value)}
+                className="h-8 text-xs"
+              />
+              <Button
+                size="sm"
+                className="h-8 cursor-pointer"
+                type="submit"
+                disabled={!taskDraft.trim()}
+              >
+                Add
+              </Button>
+            </form>
+          </Panel>
+        </div>
       </div>
     </DetailShell>
   );
@@ -877,6 +1059,41 @@ function Empty({ label }: { label: string }) {
   );
 }
 
+function CompanyDetailDialog({
+  open,
+  company,
+  onOpenChange,
+}: {
+  open: boolean;
+  company: Company | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!company) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{company.name}</DialogTitle>
+          <DialogDescription>{company.industry}</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 py-4">
+          <Info icon={<Building2 className="size-4" />} label="Domain" value={company.domain} />
+          <Info
+            icon={<UserRound className="size-4" />}
+            label="Owner"
+            value={userName(company.ownerId)}
+          />
+          <Info
+            icon={<Circle className="size-4" />}
+            label="Members"
+            value={company.memberIds.map(userName).join(", ")}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CreateContactDialog({
   open,
   companies,
@@ -901,6 +1118,19 @@ function CreateContactDialog({
   const [title, setTitle] = useState("");
   const [companyId, setCompanyId] = useState(companies[0]?.id ?? "");
   const [stage, setStage] = useState<LifecycleStage>("Lead");
+
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setName("");
+      setEmail("");
+      setPhone("");
+      setTitle("");
+      setCompanyId(companies[0]?.id ?? "");
+      setStage("Lead");
+    }
+  }, [open, companies]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -981,6 +1211,18 @@ function CreateDealDialog({
   const [stage, setStage] = useState<DealStage>("Qualified");
   const [amount, setAmount] = useState("25000");
   const [closeDate, setCloseDate] = useState("2026-07-24");
+
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setName("");
+      setContactId(contacts[0]?.id ?? "");
+      setStage("Qualified");
+      setAmount("25000");
+      setCloseDate("2026-07-24");
+    }
+  }, [open, contacts]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

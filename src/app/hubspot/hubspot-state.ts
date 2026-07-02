@@ -85,7 +85,24 @@ export type HubSpotState = HubSpotSnapshot & {
     closeDate: string;
     probability: number;
   }) => string;
+  updateContact: (
+    contactId: string,
+    actorId: string,
+    updates: Partial<Pick<Contact, "stage" | "ownerId" | "title" | "email" | "phone">>,
+  ) => void;
+  updateDeal: (
+    dealId: string,
+    actorId: string,
+    updates: Partial<Pick<Deal, "amount" | "probability" | "closeDate" | "ownerId">>,
+  ) => void;
   updateDealStage: (dealId: string, actorId: string, stage: DealStage) => void;
+  createTask: (input: {
+    actorId: string;
+    contactId: string;
+    title: string;
+    dueDate: string;
+    priority: "High" | "Medium" | "Low";
+  }) => string;
   toggleTask: (taskId: string, actorId: string) => void;
   addContactNote: (contactId: string, actorId: string, body: string) => void;
   addDealNote: (dealId: string, actorId: string, body: string) => void;
@@ -307,6 +324,52 @@ export const useHubSpotStore = create<HubSpotState>((set) => ({
       if (!canAccessDeal(state, deal, actorId)) return state;
       return { deals: { ...state.deals, [dealId]: { ...deal, stage, updatedAt: Date.now() } } };
     });
+  },
+  updateContact: (contactId, actorId, updates) => {
+    set((state) => {
+      const contact = state.contacts[contactId];
+      if (!canAccessContact(state, contact, actorId)) return state;
+      return {
+        contacts: {
+          ...state.contacts,
+          [contactId]: { ...contact, ...updates, lastActivityAt: Date.now() },
+        },
+      };
+    });
+  },
+  updateDeal: (dealId, actorId, updates) => {
+    set((state) => {
+      const deal = state.deals[dealId];
+      if (!canAccessDeal(state, deal, actorId)) return state;
+      return {
+        deals: { ...state.deals, [dealId]: { ...deal, ...updates, updatedAt: Date.now() } },
+      };
+    });
+  },
+  createTask: (input) => {
+    let id = "";
+    const title = input.title.trim();
+    if (!title) return "";
+    set((state) => {
+      const contact = state.contacts[input.contactId];
+      if (!canAccessContact(state, contact, input.actorId)) return state;
+      id = makeId("hs-task");
+      return {
+        tasks: {
+          ...state.tasks,
+          [id]: {
+            id,
+            title,
+            ownerId: input.actorId,
+            contactId: input.contactId,
+            dueDate: input.dueDate,
+            completed: false,
+            priority: input.priority,
+          },
+        },
+      };
+    });
+    return id;
   },
   toggleTask: (taskId, actorId) => {
     set((state) => {

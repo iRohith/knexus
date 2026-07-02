@@ -216,7 +216,9 @@ function useUndoToast() {
   };
 }
 
-export function GmailApp() {
+export function GmailApp({
+  onAction,
+}: { onAction?: (action: { type: string; payload: unknown }) => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -618,6 +620,10 @@ export function GmailApp() {
           onSent={() => {
             updateUrl({ compose: null });
             showUndo("Message sent");
+            onAction?.({
+              type: "SEND_EMAIL",
+              payload: { draftId: currentDraft.id, authorId: activeUser.id, ...currentDraft },
+            });
           }}
         />
       )}

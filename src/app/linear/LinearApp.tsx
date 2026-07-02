@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Activity,
   AlertTriangle,
   Archive,
   Bell,
@@ -94,7 +93,9 @@ function priorityClass(priority: LinearPriority) {
   return "text-muted-foreground";
 }
 
-export function LinearApp() {
+export function LinearApp({
+  onAction,
+}: { onAction?: (action: { type: string; payload: unknown }) => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -109,6 +110,9 @@ export function LinearApp() {
   const updatePriority = useLinearStore((state) => state.updatePriority);
   const updateAssignee = useLinearStore((state) => state.updateAssignee);
   const updateCycle = useLinearStore((state) => state.updateCycle);
+  const updateProject = useLinearStore((state) => state.updateProject);
+  const updateEstimate = useLinearStore((state) => state.updateEstimate);
+  const updateLabels = useLinearStore((state) => state.updateLabels);
   const toggleSubscriber = useLinearStore((state) => state.toggleSubscriber);
   const addComment = useLinearStore((state) => state.addComment);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -334,9 +338,28 @@ export function LinearApp() {
                 onPriority={(priority) => updatePriority(selectedIssue.id, activeUser.id, priority)}
                 onAssignee={(assignee) => updateAssignee(selectedIssue.id, activeUser.id, assignee)}
                 onCycle={(cycle) => updateCycle(selectedIssue.id, activeUser.id, cycle)}
+                onProject={(project) => updateProject(selectedIssue.id, activeUser.id, project)}
+                onEstimate={(estimate) =>
+                  updateEstimate(
+                    selectedIssue.id,
+                    activeUser.id,
+                    estimate ? parseInt(estimate, 10) : null,
+                  )
+                }
+                onLabels={(labels) => updateLabels(selectedIssue.id, activeUser.id, labels)}
                 onSubscribe={() => toggleSubscriber(selectedIssue.id, activeUser.id)}
                 onComment={() => {
-                  addComment(selectedIssue.id, activeUser.id, commentDraft);
+                  if (selectedIssue) {
+                    addComment(selectedIssue.id, activeUser.id, commentDraft);
+                    onAction?.({
+                      type: "CREATE_COMMENT",
+                      payload: {
+                        issueId: selectedIssue.id,
+                        authorId: activeUser.id,
+                        content: commentDraft,
+                      },
+                    });
+                  }
                   setCommentDraft("");
                 }}
               />
@@ -369,11 +392,12 @@ export function LinearApp() {
         cycles={teamCycles}
         activeUserId={activeUser.id}
         onOpenChange={setCreateOpen}
-        onCreate={(input) => {
-          const id = createIssue({ ...input, teamId, actorId: activeUser.id });
-          if (!id) return;
-          setCreateOpen(false);
-          updateUrl({ issue: id, view: "list", q: null });
+        onCreate={(data) => {
+          const id = createIssue({ ...data, teamId, actorId: activeUser.id });
+          if (id) {
+            setCreateOpen(false);
+            onAction?.({ type: "CREATE_ISSUE", payload: { id, ...data } });
+          }
         }}
       />
     </main>
@@ -638,6 +662,13 @@ function Roadmap({
     <div className="grid gap-4 lg:grid-cols-2">
       {projects.map((project) => {
         const projectIssues = issues.filter((issue) => issue.projectId === project.id);
+        const completedIssues = projectIssues.filter(
+          (issue) => issue.status === "Done" || issue.status === "Canceled",
+        );
+        const progress =
+          projectIssues.length === 0
+            ? 0
+            : Math.round((completedIssues.length / projectIssues.length) * 100);
         return (
           <section
             key={project.id}
@@ -648,9 +679,15 @@ function Roadmap({
                 <h2 className="font-semibold">{project.name}</h2>
                 <p className="text-xs text-muted-foreground">Target {project.targetDate}</p>
               </div>
-              <Badge variant={project.health === "On track" ? "secondary" : "outline"}>
-                {project.health}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <div className="text-xs font-mono text-muted-foreground">{progress}%</div>
+                <Badge variant={project.health === "On track" ? "secondary" : "outline"}>
+                  {project.health}
+                </Badge>
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 w-full bg-[#f7f8fb] overflow-hidden rounded-full dark:bg-[#22242d]">
+              <div className="h-full bg-[#5e6ad2]" style={{ width: `${progress}%` }} />
             </div>
             <div className="mt-4 space-y-2">
               {projectIssues.map((issue) => (
@@ -689,6 +726,9 @@ function IssueDetail({
   onPriority,
   onAssignee,
   onCycle,
+  onProject,
+  onEstimate,
+  onLabels,
   onSubscribe,
   onComment,
 }: {
@@ -705,6 +745,9 @@ function IssueDetail({
   onPriority: (priority: LinearPriority) => void;
   onAssignee: (assignee: string | null) => void;
   onCycle: (cycle: string) => void;
+  onProject: (project: string) => void;
+  onEstimate: (estimate: string) => void;
+  onLabels: (labels: string[]) => void;
   onSubscribe: () => void;
   onComment: () => void;
 }) {
@@ -840,15 +883,28 @@ function IssueDetail({
               renderItem={(value) => cycles.find((cycle) => cycle.id === value)?.name ?? value}
             />
           </Field>
+          <Field label="Project">
+            <MiniSelect
+              value={issue.projectId}
+              items={projects.map((project) => project.id)}
+              onValueChange={(value) => value && onProject(value)}
+              renderItem={(value) =>
+                projects.find((project) => project.id === value)?.name ?? "No project"
+              }
+            />
+          </Field>
+          <Field label="Estimate">
+            <MiniSelect
+              value={issue.estimate ? String(issue.estimate) : "none"}
+              items={["none", "1", "2", "3", "5", "8"]}
+              onValueChange={(value) => value && onEstimate(value === "none" ? "" : value)}
+              renderItem={(value) => (value === "none" ? "None" : `${value} points`)}
+            />
+          </Field>
           <Meta
             icon={<UserRound className="size-4" />}
             label="Creator"
             value={userName(issue.creatorId)}
-          />
-          <Meta
-            icon={<Activity className="size-4" />}
-            label="Project"
-            value={projects.find((project) => project.id === issue.projectId)?.name ?? "No project"}
           />
           <Button
             className="mt-3 w-full cursor-pointer"
@@ -860,7 +916,20 @@ function IssueDetail({
           </Button>
         </Panel>
         <Panel title="Labels">
-          <div className="flex flex-wrap gap-1">
+          <Input
+            value={issue.labels.join(", ")}
+            onChange={(e) =>
+              onLabels(
+                e.target.value
+                  .split(",")
+                  .map((l) => l.trim())
+                  .filter(Boolean),
+              )
+            }
+            placeholder="Add labels (comma separated)"
+            className="h-8 text-xs bg-transparent"
+          />
+          <div className="flex flex-wrap gap-1 mt-2">
             {issue.labels.map((label) => (
               <Badge key={label} variant="secondary">
                 {label}
@@ -943,8 +1012,23 @@ function CreateIssueDialog({
   const [assigneeId, setAssigneeId] = useState<string | null>(activeUserId);
   const [labels, setLabels] = useState("frontend, quality");
   const [estimate, setEstimate] = useState("3");
-  const projectId = projects[0]?.id ?? "";
-  const cycleId = cycles[0]?.id ?? "";
+  const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
+  const [cycleId, setCycleId] = useState(cycles[0]?.id ?? "");
+
+  // Reset fields when dialog opens
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTitle("");
+      setDescription("");
+      setPriority("Medium");
+      setAssigneeId(activeUserId);
+      setLabels("frontend, quality");
+      setEstimate("3");
+      setProjectId(projects[0]?.id ?? "");
+      setCycleId(cycles[0]?.id ?? "");
+    }
+  }, [open, activeUserId, projects, cycles]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -990,6 +1074,22 @@ function CreateIssueDialog({
           </Field>
           <Field label="Labels">
             <Input value={labels} onChange={(event) => setLabels(event.target.value)} />
+          </Field>
+          <Field label="Project">
+            <MiniSelect
+              value={projectId}
+              items={projects.map((p) => p.id)}
+              onValueChange={(val) => val && setProjectId(val)}
+              renderItem={(id) => projects.find((p) => p.id === id)?.name || id}
+            />
+          </Field>
+          <Field label="Cycle">
+            <MiniSelect
+              value={cycleId}
+              items={cycles.map((c) => c.id)}
+              onValueChange={(val) => val && setCycleId(val)}
+              renderItem={(id) => cycles.find((c) => c.id === id)?.name || id}
+            />
           </Field>
         </div>
         <DialogFooter>

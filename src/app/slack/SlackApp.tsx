@@ -1,11 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { appUsers } from "@/lib/users";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AtSign,
   Bell,
   ChevronRight,
+  Edit2,
   Edit3,
   FileText,
   Hash,
@@ -13,10 +25,12 @@ import {
   MessageSquare,
   MoreHorizontal,
   Paperclip,
+  Plus,
   Search,
   Send,
   SmilePlus,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,7 +46,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
@@ -57,7 +70,9 @@ function firstAccessibleChannel(
   return Object.values(channels).find((channel) => channel.memberIds.includes(userId))?.id;
 }
 
-export function SlackApp() {
+export function SlackApp({
+  onAction,
+}: { onAction?: (action: { type: string; payload: unknown }) => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -74,6 +89,20 @@ export function SlackApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [threadDraft, setThreadDraft] = useState("");
+  const [threadAttachments, setThreadAttachments] = useState<SlackAttachment[]>([]);
+  const [createChannelOpen, setCreateChannelOpen] = useState(false);
+  const [channelName, setChannelName] = useState("");
+  const [channelDesc, setChannelDesc] = useState("");
+  const [startDmOpen, setStartDmOpen] = useState(false);
+  const [dmMembers, setDmMembers] = useState<string[]>([]);
+  const [topicOpen, setTopicOpen] = useState(false);
+  const [topicDraft, setTopicDraft] = useState("");
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [newMembers, setNewMembers] = useState<string[]>([]);
+  const createChannel = useSlackStore((state) => state.createChannel);
+  const createDm = useSlackStore((state) => state.createDm);
+  const updateChannelTopic = useSlackStore((state) => state.updateChannelTopic);
+  const addChannelMembers = useSlackStore((state) => state.addChannelMembers);
   const [attachments, setAttachments] = useState<SlackAttachment[]>([]);
   const previousUserId = useRef(activeUser.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -111,6 +140,9 @@ export function SlackApp() {
     setSidebarOpen(false);
     setDraft("");
     setThreadDraft("");
+    setThreadAttachments([]);
+    setCreateChannelOpen(false);
+    setStartDmOpen(false);
     setAttachments([]);
     const nextChannel = firstAccessibleChannel(channels, activeUser.id) ?? "team-updates";
     router.replace(`${pathname}?channel=${nextChannel}`);
@@ -186,6 +218,12 @@ export function SlackApp() {
       body: draft,
       attachments,
     });
+    if (id) {
+      onAction?.({
+        type: "SEND_MESSAGE",
+        payload: { id, surfaceType, surfaceId, authorId: activeUser.id, body: draft, attachments },
+      });
+    }
     if (!id) {
       toast.error("Message could not be sent in this conversation");
       return;
@@ -205,12 +243,30 @@ export function SlackApp() {
       authorId: activeUser.id,
       body: threadDraft,
       threadParentId: threadParent.id,
+      attachments: threadAttachments,
     });
+    if (id) {
+      onAction?.({
+        type: "SEND_REPLY",
+        payload: {
+          id,
+          surfaceType: threadParent.surfaceType,
+          surfaceId: threadParent.surfaceId,
+          authorId: activeUser.id,
+          body: threadDraft,
+          threadParentId: threadParent.id,
+          attachments: threadAttachments,
+        },
+      });
+    }
     if (!id) {
       toast.error("Reply could not be sent");
       return;
     }
     setThreadDraft("");
+    setThreadAttachments([]);
+    setCreateChannelOpen(false);
+    setStartDmOpen(false);
   }
 
   const sidebar = (
@@ -221,6 +277,8 @@ export function SlackApp() {
       activeSurfaceId={surfaceId}
       activeSurfaceType={surfaceType}
       unreadBySurface={unreadBySurface}
+      onCreateChannel={() => setCreateChannelOpen(true)}
+      onCreateDm={() => setStartDmOpen(true)}
       onChannel={(id) => {
         updateUrl({ channel: id, dm: null, thread: null, q: null });
         setSidebarOpen(false);
@@ -260,9 +318,34 @@ export function SlackApp() {
             <Menu />
           </Button>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold">{currentTitle}</div>
+            <div className="flex items-center gap-2">
+              <span className="truncate font-semibold">{currentTitle}</span>
+              {surfaceType === "channel" && (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setTopicDraft(channels[surfaceId]?.topic || "");
+                    setTopicOpen(true);
+                  }}
+                >
+                  <Edit2 className="size-3" />
+                </Button>
+              )}
+            </div>
             <div className="truncate text-xs text-muted-foreground">{currentSubtitle}</div>
           </div>
+          {surfaceType === "channel" && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="hidden sm:flex"
+              onClick={() => setAddMemberOpen(true)}
+            >
+              <UserPlus className="size-4 mr-2" />
+              Add
+            </Button>
+          )}
           <div className="relative hidden w-80 sm:block">
             <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -286,19 +369,45 @@ export function SlackApp() {
               </div>
             ) : (
               surfaceMessages.map((message) => (
-                <SlackMessageRow
+                <div
                   key={message.id}
-                  message={message}
-                  replyCount={
-                    Object.values(messages).filter((item) => item.threadParentId === message.id)
-                      .length
+                  className={
+                    query
+                      ? "cursor-pointer rounded border border-blue-500/30 bg-blue-50/50 dark:bg-blue-900/20"
+                      : ""
                   }
-                  activeUserId={activeUser.id}
-                  onThread={() => updateUrl({ thread: message.id })}
-                  onReact={(emoji) => toggleReaction(message.id, activeUser.id, emoji)}
-                  onEdit={(body) => editMessage(message.id, activeUser.id, body)}
-                  onDelete={() => deleteMessage(message.id, activeUser.id)}
-                />
+                  onClick={() => {
+                    if (query) {
+                      updateUrl({ q: null });
+                      // Basic visual cue
+                      setTimeout(() => {
+                        const el = document.getElementById(message.id);
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          el.style.backgroundColor = "rgba(59, 130, 246, 0.1)";
+                          setTimeout(() => {
+                            el.style.backgroundColor = "";
+                          }, 2000);
+                        }
+                      }, 100);
+                    }
+                  }}
+                >
+                  <div id={message.id}>
+                    <SlackMessageRow
+                      message={message}
+                      replyCount={
+                        Object.values(messages).filter((item) => item.threadParentId === message.id)
+                          .length
+                      }
+                      activeUserId={activeUser.id}
+                      onThread={() => updateUrl({ thread: message.id })}
+                      onReact={(emoji) => toggleReaction(message.id, activeUser.id, emoji)}
+                      onEdit={(body) => editMessage(message.id, activeUser.id, body)}
+                      onDelete={() => deleteMessage(message.id, activeUser.id)}
+                    />
+                  </div>
+                </div>
               ))
             )}
             <div ref={messagesEndRef} />
@@ -420,29 +529,234 @@ export function SlackApp() {
               </div>
             </ScrollArea>
             <form className="border-t p-3 dark:border-white/10" onSubmit={sendThreadReply}>
-              <Textarea
-                className="min-h-20 resize-none"
-                placeholder="Reply in thread"
-                value={threadDraft}
-                onChange={(event) => setThreadDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" || event.shiftKey) return;
-                  event.preventDefault();
-                  sendThreadReply();
-                }}
-              />
-              <Button
-                className="mt-2 cursor-pointer gap-2"
-                size="sm"
-                type="submit"
-                disabled={!threadDraft.trim()}
-              >
-                <Send className="size-4" />
-                Reply
-              </Button>
+              {threadAttachments.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {threadAttachments.map((attachment) => (
+                    <Badge key={attachment.id} variant="outline" className="gap-2">
+                      <FileText className="size-3.5" />
+                      {attachment.name}
+                      <button
+                        className="cursor-pointer"
+                        onClick={() =>
+                          setThreadAttachments((current) =>
+                            current.filter((item) => item.id !== attachment.id),
+                          )
+                        }
+                        type="button"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="rounded-lg border bg-white p-2 shadow-sm dark:border-white/15 dark:bg-[#222529]">
+                <Textarea
+                  className="min-h-20 resize-none border-0 shadow-none focus-visible:ring-0"
+                  placeholder="Reply in thread"
+                  value={threadDraft}
+                  onChange={(event) => setThreadDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" || event.shiftKey) return;
+                    event.preventDefault();
+                    sendThreadReply();
+                  }}
+                />
+                <div className="flex items-center gap-1 mt-2">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="cursor-pointer"
+                    type="button"
+                    onClick={() =>
+                      setThreadAttachments([...threadAttachments, makeAttachment("thread")])
+                    }
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                  <div className="flex-1" />
+                  <Button
+                    className="cursor-pointer gap-2"
+                    size="sm"
+                    type="submit"
+                    disabled={!threadDraft.trim() && threadAttachments.length === 0}
+                  >
+                    <Send className="size-4" />
+                    Reply
+                  </Button>
+                </div>
+              </div>
             </form>
           </aside>
         )}
+
+      <Dialog open={createChannelOpen} onOpenChange={setCreateChannelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create a channel</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input
+                value={channelName}
+                onChange={(e) => setChannelName(e.target.value)}
+                placeholder="e.g. plan-budget"
+              />
+            </div>
+            <div>
+              <Label>Description (optional)</Label>
+              <Input value={channelDesc} onChange={(e) => setChannelDesc(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateChannelOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!channelName.trim()) return;
+                const id = createChannel(channelName, channelDesc, "", activeUser.id);
+                onAction?.({
+                  type: "CREATE_CHANNEL",
+                  payload: {
+                    id,
+                    name: channelName,
+                    description: channelDesc,
+                    authorId: activeUser.id,
+                  },
+                });
+                setCreateChannelOpen(false);
+                setChannelName("");
+                setChannelDesc("");
+                updateUrl({ channel: id, dm: null });
+              }}
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={startDmOpen} onOpenChange={setStartDmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Direct messages</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Label className="mb-2 block">To:</Label>
+            <ScrollArea className="h-40 rounded-md border p-2">
+              <div className="space-y-2">
+                {appUsers
+                  .filter((u) => u.id !== activeUser.id)
+                  .map((u) => (
+                    <label key={u.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={dmMembers.includes(u.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) setDmMembers([...dmMembers, u.id]);
+                          else setDmMembers(dmMembers.filter((id) => id !== u.id));
+                        }}
+                      />
+                      {u.name}
+                    </label>
+                  ))}
+              </div>
+            </ScrollArea>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (dmMembers.length === 0) return;
+                const ids = [activeUser.id, ...dmMembers];
+                // Check if DM exists
+                const existing = Object.values(dms).find(
+                  (dm) =>
+                    dm.participantIds.length === ids.length &&
+                    dm.participantIds.every((id) => ids.includes(id)),
+                );
+                if (existing) {
+                  updateUrl({ dm: existing.id, channel: null });
+                } else {
+                  const id = createDm(ids);
+                  updateUrl({ dm: id, channel: null });
+                }
+                setStartDmOpen(false);
+                setDmMembers([]);
+              }}
+            >
+              Go
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={topicOpen} onOpenChange={setTopicOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit channel topic</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            className="min-h-24"
+            value={topicDraft}
+            onChange={(e) => setTopicDraft(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTopicOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                updateChannelTopic(surfaceId, topicDraft, activeUser.id);
+                setTopicOpen(false);
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add members</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <ScrollArea className="h-40 rounded-md border p-2">
+              <div className="space-y-2">
+                {appUsers
+                  .filter((u) => !channels[surfaceId]?.memberIds.includes(u.id))
+                  .map((u) => (
+                    <label key={u.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={newMembers.includes(u.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) setNewMembers([...newMembers, u.id]);
+                          else setNewMembers(newMembers.filter((id) => id !== u.id));
+                        }}
+                      />
+                      {u.name}
+                    </label>
+                  ))}
+              </div>
+            </ScrollArea>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (newMembers.length > 0) {
+                  addChannelMembers(surfaceId, newMembers, activeUser.id);
+                }
+                setAddMemberOpen(false);
+                setNewMembers([]);
+              }}
+            >
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
@@ -454,9 +768,13 @@ function SlackSidebar({
   activeSurfaceId,
   activeSurfaceType,
   unreadBySurface,
+  onCreateChannel,
+  onCreateDm,
   onChannel,
   onDm,
 }: {
+  onCreateChannel: () => void;
+  onCreateDm: () => void;
   activeUserId: string;
   channels: ReturnType<typeof useSlackStore.getState>["channels"];
   dms: ReturnType<typeof useSlackStore.getState>["dms"];
@@ -474,7 +792,17 @@ function SlackSidebar({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-3">
-          <SidebarSection title="Channels">
+          <SidebarSection
+            title="Channels"
+            action={
+              <button
+                className="cursor-pointer hover:bg-white/10 rounded p-1"
+                onClick={onCreateChannel}
+              >
+                <Plus className="size-3" />
+              </button>
+            }
+          >
             {Object.values(channels)
               .filter((channel) => channel.memberIds.includes(activeUserId))
               .map((channel) => (
@@ -488,7 +816,14 @@ function SlackSidebar({
                 />
               ))}
           </SidebarSection>
-          <SidebarSection title="Direct messages">
+          <SidebarSection
+            title="Direct messages"
+            action={
+              <button className="cursor-pointer hover:bg-white/10 rounded p-1" onClick={onCreateDm}>
+                <Plus className="size-3" />
+              </button>
+            }
+          >
             {Object.values(dms)
               .filter((dm) => dm.participantIds.includes(activeUserId))
               .map((dm) => (
@@ -508,12 +843,23 @@ function SlackSidebar({
   );
 }
 
-function SidebarSection({ title, children }: { title: string; children: React.ReactNode }) {
+function SidebarSection({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mb-5">
-      <div className="mb-1 flex items-center gap-1 px-2 text-xs font-medium text-white/60">
-        <ChevronRight className="size-3" />
-        {title}
+      <div className="mb-1 flex items-center justify-between px-2 text-xs font-medium text-white/60">
+        <div className="flex items-center gap-1">
+          <ChevronRight className="size-3" />
+          {title}
+        </div>
+        {action}
       </div>
       <div className="space-y-0.5">{children}</div>
     </div>

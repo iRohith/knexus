@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 
+import { appUsers } from "@/lib/users";
+
 export type JiraIssueType = "Story" | "Task" | "Bug" | "Epic";
 export type JiraPriority = "Highest" | "High" | "Medium" | "Low";
 export type JiraStatus = "Backlog" | "Selected" | "In Progress" | "In Review" | "Done";
@@ -75,6 +77,10 @@ export type JiraState = JiraSnapshot & {
   updateAssignee: (issueId: string, actorId: string, assigneeId: string | null) => void;
   updatePriority: (issueId: string, actorId: string, priority: JiraPriority) => void;
   updateStoryPoints: (issueId: string, actorId: string, storyPoints: number | null) => void;
+  updateIssueType: (issueId: string, actorId: string, type: JiraIssueType) => void;
+  updateSprint: (issueId: string, actorId: string, sprint: string) => void;
+  updateDueDate: (issueId: string, actorId: string, dueDate: string) => void;
+  updateLabels: (issueId: string, actorId: string, labels: string[]) => void;
   updateIssueText: (issueId: string, actorId: string, summary: string, description: string) => void;
   toggleWatcher: (issueId: string, actorId: string) => void;
   addComment: (issueId: string, actorId: string, body: string) => void;
@@ -104,6 +110,10 @@ function makeId(prefix: string) {
 
 function activity(actorId: string, body: string, timestamp: number): JiraActivity {
   return { id: makeId("jira-activity"), actorId, body, timestamp };
+}
+
+function userName(id: string) {
+  return appUsers.find((user) => user.id === id)?.name ?? id;
 }
 
 function buildInitialSnapshot(): JiraSnapshot {
@@ -341,7 +351,9 @@ export const useJiraStore = create<JiraState>((set) => ({
             ...issue.activity,
             activity(
               actorId,
-              safeAssignee ? `assigned the issue` : "cleared the assignee",
+              safeAssignee
+                ? `assigned the issue to ${userName(safeAssignee)}`
+                : "cleared the assignee",
               timestamp,
             ),
           ],
@@ -368,7 +380,69 @@ export const useJiraStore = create<JiraState>((set) => ({
         ...issue,
         storyPoints,
         updatedAt: timestamp,
-        activity: [...issue.activity, activity(actorId, "updated story points", timestamp)],
+        activity: [
+          ...issue.activity,
+          activity(
+            actorId,
+            storyPoints !== null
+              ? `updated story points to ${storyPoints}`
+              : "cleared story points",
+            timestamp,
+          ),
+        ],
+      })),
+    );
+  },
+  updateIssueType: (issueId, actorId, type) => {
+    set((state) =>
+      mutateIssue(state, issueId, actorId, (issue, timestamp) => ({
+        ...issue,
+        type,
+        updatedAt: timestamp,
+        activity: [...issue.activity, activity(actorId, `changed type to ${type}`, timestamp)],
+      })),
+    );
+  },
+  updateSprint: (issueId, actorId, sprint) => {
+    set((state) =>
+      mutateIssue(state, issueId, actorId, (issue, timestamp) => ({
+        ...issue,
+        sprint: sprint.trim() || "Backlog",
+        updatedAt: timestamp,
+        activity: [
+          ...issue.activity,
+          activity(actorId, `moved issue to ${sprint.trim() || "Backlog"}`, timestamp),
+        ],
+      })),
+    );
+  },
+  updateDueDate: (issueId, actorId, dueDate) => {
+    set((state) =>
+      mutateIssue(state, issueId, actorId, (issue, timestamp) => ({
+        ...issue,
+        dueDate,
+        updatedAt: timestamp,
+        activity: [
+          ...issue.activity,
+          activity(actorId, `changed due date to ${dueDate}`, timestamp),
+        ],
+      })),
+    );
+  },
+  updateLabels: (issueId, actorId, labels) => {
+    set((state) =>
+      mutateIssue(state, issueId, actorId, (issue, timestamp) => ({
+        ...issue,
+        labels: labels.map((label) => label.trim()).filter(Boolean),
+        updatedAt: timestamp,
+        activity: [
+          ...issue.activity,
+          activity(
+            actorId,
+            labels.length ? `updated labels to ${labels.join(", ")}` : "cleared all labels",
+            timestamp,
+          ),
+        ],
       })),
     );
   },
@@ -379,7 +453,10 @@ export const useJiraStore = create<JiraState>((set) => ({
         summary: summary.trim() || issue.summary,
         description: description.trim() || issue.description,
         updatedAt: timestamp,
-        activity: [...issue.activity, activity(actorId, "updated issue details", timestamp)],
+        activity: [
+          ...issue.activity,
+          activity(actorId, "updated summary or description", timestamp),
+        ],
       })),
     );
   },

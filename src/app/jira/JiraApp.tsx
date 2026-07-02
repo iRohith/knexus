@@ -106,6 +106,10 @@ export function JiraApp() {
   const updateAssignee = useJiraStore((state) => state.updateAssignee);
   const updatePriority = useJiraStore((state) => state.updatePriority);
   const updateStoryPoints = useJiraStore((state) => state.updateStoryPoints);
+  const updateIssueType = useJiraStore((state) => state.updateIssueType);
+  const updateSprint = useJiraStore((state) => state.updateSprint);
+  const updateDueDate = useJiraStore((state) => state.updateDueDate);
+  const updateLabels = useJiraStore((state) => state.updateLabels);
   const updateIssueText = useJiraStore((state) => state.updateIssueText);
   const toggleWatcher = useJiraStore((state) => state.toggleWatcher);
   const addComment = useJiraStore((state) => state.addComment);
@@ -129,6 +133,7 @@ export function JiraApp() {
   const query = searchParams.get("q") ?? "";
   const statusFilter = searchParams.get("status") ?? "all";
   const assigneeFilter = searchParams.get("assignee") ?? "all";
+  const reporterFilter = searchParams.get("reporter") ?? "all";
   const typeFilter = searchParams.get("type") ?? "all";
   const priorityFilter = searchParams.get("priority") ?? "all";
   const normalizedQuery = query.trim().toLowerCase();
@@ -199,6 +204,7 @@ export function JiraApp() {
       if (assigneeFilter !== "all" && (issue.assigneeId ?? "unassigned") !== assigneeFilter) {
         return false;
       }
+      if (reporterFilter !== "all" && issue.reporterId !== reporterFilter) return false;
       if (typeFilter !== "all" && issue.type !== typeFilter) return false;
       if (priorityFilter !== "all" && issue.priority !== priorityFilter) return false;
       if (!normalizedQuery) return true;
@@ -234,6 +240,7 @@ export function JiraApp() {
           q: null,
           status: null,
           assignee: null,
+          reporter: null,
           type: null,
           priority: null,
         });
@@ -312,6 +319,7 @@ export function JiraApp() {
               project={project}
               status={statusFilter}
               assignee={assigneeFilter}
+              reporter={reporterFilter}
               type={typeFilter}
               priority={priorityFilter}
               onChange={(next) => updateUrl({ ...next, issue: null })}
@@ -337,6 +345,10 @@ export function JiraApp() {
                 onStoryPoints={(points) =>
                   updateStoryPoints(selectedIssue.id, activeUser.id, points)
                 }
+                onType={(type) => updateIssueType(selectedIssue.id, activeUser.id, type)}
+                onSprint={(sprint) => updateSprint(selectedIssue.id, activeUser.id, sprint)}
+                onDueDate={(dueDate) => updateDueDate(selectedIssue.id, activeUser.id, dueDate)}
+                onLabels={(labels) => updateLabels(selectedIssue.id, activeUser.id, labels)}
                 onWatch={() => toggleWatcher(selectedIssue.id, activeUser.id)}
                 onSaveText={(summary, description) =>
                   updateIssueText(selectedIssue.id, activeUser.id, summary, description)
@@ -353,7 +365,14 @@ export function JiraApp() {
                 onStatus={(id, status) => updateStatus(id, activeUser.id, status)}
               />
             ) : (
-              <BacklogView issues={projectIssues} onOpen={(id) => updateUrl({ issue: id })} />
+              <BacklogView
+                issues={projectIssues}
+                project={project}
+                onOpen={(id) => updateUrl({ issue: id })}
+                onStatus={(id, status) => updateStatus(id, activeUser.id, status)}
+                onAssignee={(id, assigneeId) => updateAssignee(id, activeUser.id, assigneeId)}
+                onPriority={(id, priority) => updatePriority(id, activeUser.id, priority)}
+              />
             )}
           </div>
         </ScrollArea>
@@ -431,6 +450,7 @@ function JiraFilters({
   project,
   status,
   assignee,
+  reporter,
   type,
   priority,
   onChange,
@@ -438,6 +458,7 @@ function JiraFilters({
   project: JiraProject;
   status: string;
   assignee: string;
+  reporter: string;
   type: string;
   priority: string;
   onChange: (next: Record<string, string | null>) => void;
@@ -455,6 +476,12 @@ function JiraFilters({
         onValueChange={(value) => onChange({ assignee: value === "all" ? null : value })}
         items={["all", "unassigned", ...project.memberIds]}
         renderItem={(value) => (value === "all" ? "All assignees" : userName(value))}
+      />
+      <SmallSelect
+        value={reporter}
+        onValueChange={(value) => onChange({ reporter: value === "all" ? null : value })}
+        items={["all", ...project.memberIds]}
+        renderItem={(value) => (value === "all" ? "All reporters" : userName(value))}
       />
       <SmallSelect
         value={type}
@@ -569,30 +596,32 @@ function IssueCard({
           <AvatarFallback>{userInitials(issue.assigneeId)}</AvatarFallback>
         </Avatar>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-1">
-        {jiraStatuses
-          .filter((status) => status !== issue.status)
-          .slice(0, 2)
-          .map((status) => (
-            <Button
-              key={status}
-              className="h-7 cursor-pointer text-[11px]"
-              size="sm"
-              variant="outline"
-              onClick={(event) => {
-                event.stopPropagation();
-                onStatus(issue.id, status);
-              }}
-            >
-              {status}
-            </Button>
-          ))}
+      <div className="mt-2" onClick={(event) => event.stopPropagation()}>
+        <SmallSelect
+          value={issue.status}
+          items={jiraStatuses}
+          onValueChange={(value) => value && onStatus(issue.id, value as JiraStatus)}
+        />
       </div>
     </button>
   );
 }
 
-function BacklogView({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (id: string) => void }) {
+function BacklogView({
+  issues,
+  project,
+  onOpen,
+  onStatus,
+  onAssignee,
+  onPriority,
+}: {
+  issues: JiraIssue[];
+  project: JiraProject;
+  onOpen: (id: string) => void;
+  onStatus: (id: string, status: JiraStatus) => void;
+  onAssignee: (id: string, assigneeId: string | null) => void;
+  onPriority: (id: string, priority: JiraPriority) => void;
+}) {
   if (issues.length === 0) {
     return (
       <div className="flex h-72 flex-col items-center justify-center gap-2 rounded-md border border-[#dfe1e6] bg-white text-muted-foreground dark:border-[#2c333a] dark:bg-[#161a1d]">
@@ -624,15 +653,32 @@ function BacklogView({ issues, onOpen }: { issues: JiraIssue[]; onOpen: (id: str
               ))}
             </div>
           </div>
-          <Badge className="hidden justify-center md:inline-flex" variant="outline">
-            {issue.status}
-          </Badge>
-          <span className="hidden text-xs text-muted-foreground md:block">
-            {userName(issue.assigneeId)}
-          </span>
-          <span className={cn("hidden text-xs md:block", priorityTone(issue.priority))}>
-            {issue.priority}
-          </span>
+          <div className="hidden md:block" onClick={(e) => e.stopPropagation()}>
+            <SmallSelect
+              value={issue.status}
+              items={jiraStatuses}
+              onValueChange={(status) => status && onStatus(issue.id, status as JiraStatus)}
+            />
+          </div>
+          <div className="hidden md:block" onClick={(e) => e.stopPropagation()}>
+            <SmallSelect
+              value={issue.assigneeId ?? "unassigned"}
+              items={["unassigned", ...project.memberIds]}
+              onValueChange={(value) =>
+                value && onAssignee(issue.id, value === "unassigned" ? null : value)
+              }
+              renderItem={(value) => userName(value)}
+            />
+          </div>
+          <div className="hidden md:block" onClick={(e) => e.stopPropagation()}>
+            <SmallSelect
+              value={issue.priority}
+              items={jiraPriorities}
+              onValueChange={(priority) =>
+                priority && onPriority(issue.id, priority as JiraPriority)
+              }
+            />
+          </div>
           <div className="flex items-center gap-2">
             <MessageSquare className="size-4 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">{issue.comments.length}</span>
@@ -658,6 +704,10 @@ function IssueDetail({
   onWatch,
   onSaveText,
   onComment,
+  onType,
+  onSprint,
+  onDueDate,
+  onLabels,
 }: {
   issue: JiraIssue;
   project: JiraProject;
@@ -672,6 +722,10 @@ function IssueDetail({
   onWatch: () => void;
   onSaveText: (summary: string, description: string) => void;
   onComment: () => void;
+  onType: (type: JiraIssueType) => void;
+  onSprint: (sprint: string) => void;
+  onDueDate: (dueDate: string) => void;
+  onLabels: (labels: string[]) => void;
 }) {
   const [textState, setTextState] = useState({ key: "", summary: "", description: "" });
   const watching = issue.watcherIds.includes(activeUserId);
@@ -694,7 +748,24 @@ function IssueDetail({
         </Button>
         <div className="rounded-md border border-[#dfe1e6] bg-white p-4 dark:border-[#2c333a] dark:bg-[#161a1d]">
           <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
-            {typeIcon(issue.type)}
+            <Select value={issue.type} onValueChange={(value) => onType(value as JiraIssueType)}>
+              <SelectTrigger className="h-6 w-auto border-transparent px-1 py-0 shadow-none focus:ring-0">
+                <div className="flex items-center gap-1">
+                  {typeIcon(issue.type)}
+                  <span>{issue.type}</span>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {jiraIssueTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    <div className="flex items-center gap-2">
+                      {typeIcon(type as JiraIssueType)}
+                      <span>{type}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span className="font-mono">{issue.key}</span>
             <span>Created {formatJiraDate(issue.createdAt)}</span>
             <span>Updated {relativeTime(issueActivityTime(issue))}</span>
@@ -819,8 +890,29 @@ function IssueDetail({
             label="Reporter"
             value={userName(issue.reporterId)}
           />
-          <MetaRow icon={<CalendarDays className="size-4" />} label="Due" value={issue.dueDate} />
-          <MetaRow icon={<CircleDot className="size-4" />} label="Sprint" value={issue.sprint} />
+          <div className="mt-3 flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CalendarDays className="size-4" />
+              Due
+            </div>
+            <Input
+              type="date"
+              className="h-7 w-[120px] px-2 py-1 text-xs"
+              value={issue.dueDate}
+              onChange={(e) => onDueDate(e.target.value)}
+            />
+          </div>
+          <div className="mt-3 flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CircleDot className="size-4" />
+              Sprint
+            </div>
+            <Input
+              className="h-7 w-[120px] px-2 py-1 text-xs"
+              value={issue.sprint}
+              onChange={(e) => onSprint(e.target.value)}
+            />
+          </div>
           <Button
             variant={watching ? "secondary" : "outline"}
             className="mt-3 w-full cursor-pointer"
@@ -831,6 +923,13 @@ function IssueDetail({
         </div>
         <div className="rounded-md border border-[#dfe1e6] bg-white p-3 dark:border-[#2c333a] dark:bg-[#161a1d]">
           <div className="mb-2 text-xs font-medium text-muted-foreground">Labels</div>
+          <Input
+            className="mb-2 h-7 text-xs"
+            placeholder="Comma separated"
+            defaultValue={issue.labels.join(", ")}
+            onBlur={(e) => onLabels(e.target.value.split(","))}
+            onKeyDown={(e) => e.key === "Enter" && onLabels(e.currentTarget.value.split(","))}
+          />
           <div className="flex flex-wrap gap-1">
             {issue.labels.map((label) => (
               <Badge key={label} variant="secondary">
@@ -912,6 +1011,21 @@ function CreateIssueDialog({
   const [sprint, setSprint] = useState("Sprint 14");
   const [storyPoints, setStoryPoints] = useState("3");
   const [dueDate, setDueDate] = useState("2026-07-18");
+
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setType("Task");
+      setSummary("");
+      setDescription("");
+      setPriority("Medium");
+      setAssigneeId(activeUserId);
+      setLabels("triage, frontend");
+      setSprint("Sprint 14");
+      setStoryPoints("3");
+      setDueDate("2026-07-18");
+    }
+  }, [open, activeUserId]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

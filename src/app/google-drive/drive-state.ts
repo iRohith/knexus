@@ -36,6 +36,9 @@ export type DriveState = DriveSnapshot & {
   trashItem: (itemId: string, actorId: string) => void;
   restoreItem: (itemId: string, actorId: string) => void;
   shareItem: (itemId: string, actorId: string, userId: string) => void;
+  renameItem: (itemId: string, actorId: string, name: string) => void;
+  moveItem: (itemId: string, actorId: string, parentId: string | null) => void;
+  deleteItem: (itemId: string, actorId: string) => void;
 };
 
 export const driveViews: DriveView[] = ["my-drive", "shared", "starred", "recent", "trash"];
@@ -199,22 +202,69 @@ export const useDriveStore = create<DriveState>((set) => ({
       };
     });
   },
+  renameItem: (itemId, actorId, name) => {
+    set((state) => {
+      const item = state.items[itemId];
+      if (!item || item.ownerId !== actorId) return state;
+      return {
+        items: { ...state.items, [itemId]: { ...item, name, updatedAt: Date.now() } },
+      };
+    });
+  },
+  moveItem: (itemId, actorId, parentId) => {
+    set((state) => {
+      const item = state.items[itemId];
+      if (!item || item.ownerId !== actorId) return state;
+      if (parentId && !canAccessItem(state.items[parentId], actorId)) return state;
+      return {
+        items: { ...state.items, [itemId]: { ...item, parentId, updatedAt: Date.now() } },
+      };
+    });
+  },
+  deleteItem: (itemId, actorId) => {
+    set((state) => {
+      const item = state.items[itemId];
+      if (!item || item.ownerId !== actorId || !item.trashed) return state;
+      const nextItems = { ...state.items };
+      delete nextItems[itemId];
+      return { items: nextItems };
+    });
+  },
   shareItem: (itemId, actorId, userId) => {
     set((state) => {
       const item = state.items[itemId];
       if (!item || item.ownerId !== actorId || userId === actorId) return state;
-      return {
-        items: {
-          ...state.items,
-          [itemId]: {
-            ...item,
-            sharedWith: item.sharedWith.includes(userId)
-              ? item.sharedWith
-              : [...item.sharedWith, userId],
+
+      const nextItems = { ...state.items };
+      const toUpdate = [itemId];
+      const visited = new Set<string>();
+
+      while (toUpdate.length > 0) {
+        const currentId = toUpdate.pop()!;
+        if (visited.has(currentId)) continue;
+        visited.add(currentId);
+
+        const currentItem = nextItems[currentId];
+        if (currentItem) {
+          nextItems[currentId] = {
+            ...currentItem,
+            sharedWith: currentItem.sharedWith.includes(userId)
+              ? currentItem.sharedWith
+              : [...currentItem.sharedWith, userId],
             updatedAt: Date.now(),
-          },
-        },
-      };
+          };
+
+          if (currentItem.kind === "folder") {
+            for (const [id, child] of Object.entries(nextItems)) {
+              if (child.parentId === currentId) {
+                toUpdate.push(id);
+              }
+            }
+          }
+        }
+      }
+
+      return { items: nextItems };
     });
   },
 }));

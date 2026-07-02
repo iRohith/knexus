@@ -68,6 +68,8 @@ export function FirefliesApp() {
   const activeUser = useActiveUser();
   const meetings = useFirefliesStore((state) => state.meetings);
   const importMeeting = useFirefliesStore((state) => state.importMeeting);
+  const updateMeetingText = useFirefliesStore((state) => state.updateMeetingText);
+  const addActionItem = useFirefliesStore((state) => state.addActionItem);
   const toggleActionItem = useFirefliesStore((state) => state.toggleActionItem);
   const addComment = useFirefliesStore((state) => state.addComment);
   const shareMeeting = useFirefliesStore((state) => state.shareMeeting);
@@ -224,7 +226,13 @@ export function FirefliesApp() {
                 onAction={(actionId) =>
                   toggleActionItem(selectedMeeting.id, actionId, activeUser.id)
                 }
+                onAddAction={(text, ownerId) =>
+                  addActionItem(selectedMeeting.id, activeUser.id, text, ownerId)
+                }
                 onShare={(userId) => shareMeeting(selectedMeeting.id, activeUser.id, userId)}
+                onSaveText={(summary, topics) =>
+                  updateMeetingText(selectedMeeting.id, activeUser.id, summary, topics)
+                }
                 onComment={() => {
                   addComment(selectedMeeting.id, activeUser.id, commentDraft);
                   setCommentDraft("");
@@ -354,7 +362,9 @@ function MeetingDetail({
   commentDraft,
   onCommentDraft,
   onAction,
+  onAddAction,
   onShare,
+  onSaveText,
   onComment,
 }: {
   meeting: Meeting;
@@ -362,9 +372,20 @@ function MeetingDetail({
   commentDraft: string;
   onCommentDraft: (value: string) => void;
   onAction: (actionId: string) => void;
+  onAddAction: (text: string, ownerId: string) => void;
   onShare: (userId: string) => void;
+  onSaveText: (summary: string, topics: string[]) => void;
   onComment: () => void;
 }) {
+  const [textState, setTextState] = useState({ key: "", summary: "", topics: "" });
+  const [newActionText, setNewActionText] = useState("");
+  const [newActionOwner, setNewActionOwner] = useState(activeUserId);
+  const [speakerFilter, setSpeakerFilter] = useState("all");
+
+  const summary = textState.key === meeting.id ? textState.summary : meeting.summary;
+  const topics = textState.key === meeting.id ? textState.topics : meeting.topics.join(", ");
+
+  const isOwner = meeting.ownerId === activeUserId;
   return (
     <div className="min-w-0 space-y-4">
       <section className="rounded-md border border-[#d9e2ec] bg-white p-4 dark:border-[#273241] dark:bg-[#171c26]">
@@ -375,8 +396,14 @@ function MeetingDetail({
               {meeting.date} · {meeting.duration} · {meeting.source}
             </p>
           </div>
-          <Select onValueChange={(value) => typeof value === "string" && onShare(value)}>
-            <SelectTrigger className="cursor-pointer">
+          <Select
+            disabled={!isOwner}
+            onValueChange={(value) => typeof value === "string" && onShare(value)}
+          >
+            <SelectTrigger
+              className="cursor-pointer"
+              title={!isOwner ? "Only the owner can share this meeting" : undefined}
+            >
               <Share2 className="size-4" />
               <SelectValue placeholder="Share" />
             </SelectTrigger>
@@ -396,7 +423,19 @@ function MeetingDetail({
             <Sparkles className="size-4 text-[#6d5dfc]" />
             AI summary
           </div>
-          <p className="leading-6">{meeting.summary}</p>
+          <Textarea
+            className="mb-2 bg-transparent border-transparent shadow-none resize-none focus-visible:border-[#d9e2ec] dark:focus-visible:border-[#273241]"
+            value={summary}
+            onChange={(e) => setTextState({ key: meeting.id, summary: e.target.value, topics })}
+            onBlur={() => onSaveText(summary, topics.split(","))}
+          />
+          <Input
+            className="h-8 bg-transparent border-transparent shadow-none focus-visible:border-[#d9e2ec] dark:focus-visible:border-[#273241] text-xs"
+            placeholder="Topics (comma separated)"
+            value={topics}
+            onChange={(e) => setTextState({ key: meeting.id, summary, topics: e.target.value })}
+            onBlur={() => onSaveText(summary, topics.split(","))}
+          />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {meeting.attendeeIds.map((id) => (
@@ -409,17 +448,37 @@ function MeetingDetail({
       </section>
       <section className="grid gap-4 lg:grid-cols-[1fr_20rem]">
         <div className="rounded-md border border-[#d9e2ec] bg-white p-4 dark:border-[#273241] dark:bg-[#171c26]">
-          <div className="mb-3 font-semibold">Transcript</div>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="font-semibold">Transcript</div>
+            <Select
+              value={speakerFilter}
+              onValueChange={(v) => typeof v === "string" && setSpeakerFilter(v)}
+            >
+              <SelectTrigger className="h-7 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All speakers</SelectItem>
+                {Array.from(new Set(meeting.transcript.map((l) => l.speakerId))).map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {userName(id)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-3">
-            {meeting.transcript.map((line) => (
-              <div key={line.id} className="grid grid-cols-[3rem_1fr] gap-3">
-                <span className="text-xs text-muted-foreground">{line.timestamp}</span>
-                <div>
-                  <span className="font-medium">{userName(line.speakerId)}: </span>
-                  {line.text}
+            {meeting.transcript
+              .filter((line) => speakerFilter === "all" || line.speakerId === speakerFilter)
+              .map((line) => (
+                <div key={line.id} className="grid grid-cols-[3rem_1fr] gap-3">
+                  <span className="text-xs text-muted-foreground">{line.timestamp}</span>
+                  <div>
+                    <span className="font-medium">{userName(line.speakerId)}: </span>
+                    {line.text}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
         <div className="rounded-md border border-[#d9e2ec] bg-white p-4 dark:border-[#273241] dark:bg-[#171c26]">
@@ -452,6 +511,47 @@ function MeetingDetail({
               </button>
             ))}
           </div>
+          <form
+            className="mt-4 grid gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newActionText.trim()) return;
+              onAddAction(newActionText, newActionOwner);
+              setNewActionText("");
+            }}
+          >
+            <Input
+              placeholder="New action item..."
+              value={newActionText}
+              onChange={(e) => setNewActionText(e.target.value)}
+              className="h-8 text-xs"
+            />
+            <div className="flex justify-between items-center">
+              <Select
+                value={newActionOwner}
+                onValueChange={(v) => typeof v === "string" && setNewActionOwner(v)}
+              >
+                <SelectTrigger className="h-8 w-32 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {meeting.attendeeIds.map((id) => (
+                    <SelectItem key={id} value={id}>
+                      {userName(id)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs bg-[#6d5dfc] text-white hover:bg-[#5a49e8]"
+                disabled={!newActionText.trim()}
+              >
+                Add
+              </Button>
+            </div>
+          </form>
         </div>
       </section>
       <section className="rounded-md border border-[#d9e2ec] bg-white p-4 dark:border-[#273241] dark:bg-[#171c26]">
@@ -517,6 +617,18 @@ function ImportDialog({
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [topics, setTopics] = useState("planning, follow-up");
+  const [attendeeIds, setAttendeeIds] = useState<string[]>(appUsers.map((u) => u.id));
+
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTitle("");
+      setSummary("");
+      setTopics("planning, follow-up");
+      setAttendeeIds(appUsers.map((u) => u.id));
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -540,6 +652,25 @@ function ImportDialog({
             value={topics}
             onChange={(event) => setTopics(event.target.value)}
           />
+          <div className="text-xs font-medium text-muted-foreground">Attendees</div>
+          <div className="flex flex-wrap gap-2">
+            {appUsers.map((user) => (
+              <Badge
+                key={user.id}
+                variant={attendeeIds.includes(user.id) ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() =>
+                  setAttendeeIds((prev) =>
+                    prev.includes(user.id)
+                      ? prev.filter((id) => id !== user.id)
+                      : [...prev, user.id],
+                  )
+                }
+              >
+                {user.name}
+              </Badge>
+            ))}
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" className="cursor-pointer" onClick={() => onOpenChange(false)}>
@@ -552,7 +683,7 @@ function ImportDialog({
               onImport({
                 title,
                 summary,
-                attendeeIds: appUsers.map((user) => user.id),
+                attendeeIds,
                 topics: topics
                   .split(",")
                   .map((topic) => topic.trim())

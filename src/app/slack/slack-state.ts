@@ -65,7 +65,17 @@ export type SlackState = SlackSnapshot & {
   toggleReaction: (id: string, userId: string, emoji: string) => void;
   markSurfaceRead: (surfaceId: string, userId: string) => void;
   makeAttachment: (seed: string) => SlackAttachment;
+  createChannel: (name: string, description: string, topic: string, creatorId: string) => string;
+  createDm: (participantIds: string[]) => string;
+  updateChannelTopic: (channelId: string, topic: string, userId: string) => void;
+  addChannelMembers: (channelId: string, memberIds: string[], userId: string) => void;
 };
+
+function makeId(prefix: string) {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? `${prefix}-${crypto.randomUUID()}`
+    : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function canAuthorPost(
   snapshot: SlackSnapshot,
@@ -255,6 +265,65 @@ const initialSnapshot = buildInitialSnapshot();
 export const useSlackStore = create<SlackState>((set, get) => ({
   ...initialSnapshot,
 
+  createChannel: (name, description, topic, creatorId) => {
+    const id = makeId("slack-channel");
+    set((state) => ({
+      channels: {
+        ...state.channels,
+        [id]: {
+          id,
+          name: name
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-]/g, "-"),
+          description: description.trim(),
+          topic: topic.trim(),
+          memberIds: [creatorId],
+          starredBy: [],
+        },
+      },
+    }));
+    return id;
+  },
+
+  createDm: (participantIds) => {
+    const id = makeId("slack-dm");
+    set((state) => ({
+      dms: {
+        ...state.dms,
+        [id]: { id, participantIds },
+      },
+    }));
+    return id;
+  },
+
+  updateChannelTopic: (channelId, topic, userId) => {
+    set((state) => {
+      const channel = state.channels[channelId];
+      if (!channel || !channel.memberIds.includes(userId)) return state;
+      return {
+        channels: {
+          ...state.channels,
+          [channelId]: { ...channel, topic: topic.trim() },
+        },
+      };
+    });
+  },
+
+  addChannelMembers: (channelId, memberIds, userId) => {
+    set((state) => {
+      const channel = state.channels[channelId];
+      if (!channel || !channel.memberIds.includes(userId)) return state;
+      const newMemberIds = Array.from(new Set([...channel.memberIds, ...memberIds]));
+      return {
+        channels: {
+          ...state.channels,
+          [channelId]: { ...channel, memberIds: newMemberIds },
+        },
+      };
+    });
+  },
+
   sendMessage: ({
     surfaceType,
     surfaceId,
@@ -280,10 +349,7 @@ export const useSlackStore = create<SlackState>((set, get) => ({
         .map((message) => message.timestamp),
     );
     const timestamp = Math.max(Date.now(), latestSurfaceTimestamp + 60 * 1000);
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? `slack-msg-${crypto.randomUUID()}`
-        : `slack-msg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const id = makeId("slack-msg");
     set((state) => ({
       messages: {
         ...state.messages,

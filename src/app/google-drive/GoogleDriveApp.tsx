@@ -16,6 +16,7 @@ import {
   Star,
   Trash2,
   Upload,
+  ArrowLeft,
 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -67,7 +68,9 @@ function iconFor(kind: DriveKind) {
   return <FileText className="size-5 text-[#4285f4]" />;
 }
 
-export function GoogleDriveApp() {
+export function GoogleDriveApp({
+  onAction,
+}: { onAction?: (action: { type: string; payload: unknown }) => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -79,6 +82,9 @@ export function GoogleDriveApp() {
   const trashItem = useDriveStore((state) => state.trashItem);
   const restoreItem = useDriveStore((state) => state.restoreItem);
   const shareItem = useDriveStore((state) => state.shareItem);
+  const renameItem = useDriveStore((state) => state.renameItem);
+  const moveItem = useDriveStore((state) => state.moveItem);
+  const deleteItem = useDriveStore((state) => state.deleteItem);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -191,8 +197,38 @@ export function GoogleDriveApp() {
             </Button>
             <div className="min-w-0 flex-1">
               <div className="font-semibold">Google Drive</div>
-              <div className="text-xs text-muted-foreground">
-                {folderId ? items[folderId]?.name : viewLabel(view)}
+              <div className="text-xs text-muted-foreground flex items-center gap-1 overflow-hidden">
+                {folderId
+                  ? (() => {
+                      const path = [];
+                      let current: DriveItem | undefined = items[folderId];
+                      while (current) {
+                        path.unshift(current);
+                        current = current.parentId ? items[current.parentId] : undefined;
+                      }
+                      return (
+                        <>
+                          <button
+                            className="hover:underline cursor-pointer"
+                            onClick={() => updateUrl({ folder: null, file: null })}
+                          >
+                            My Drive
+                          </button>
+                          {path.map((item) => (
+                            <span key={item.id} className="flex items-center gap-1">
+                              <span>/</span>
+                              <button
+                                className="hover:underline cursor-pointer truncate max-w-[120px]"
+                                onClick={() => updateUrl({ folder: item.id, file: null })}
+                              >
+                                {item.name}
+                              </button>
+                            </span>
+                          ))}
+                        </>
+                      );
+                    })()
+                  : viewLabel(view)}
               </div>
             </div>
             <Button
@@ -245,11 +281,24 @@ export function GoogleDriveApp() {
             <Preview
               item={selectedItem}
               activeUserId={activeUser.id}
+              folders={Object.values(items).filter(
+                (item) => item.kind === "folder" && canAccessItem(item, activeUser.id),
+              )}
               onStar={() => selectedItem && toggleStar(selectedItem.id, activeUser.id)}
               onTrash={() => selectedItem && trashItem(selectedItem.id, activeUser.id)}
               onShare={(userId) =>
                 selectedItem && shareItem(selectedItem.id, activeUser.id, userId)
               }
+              onRename={(name) => selectedItem && renameItem(selectedItem.id, activeUser.id, name)}
+              onMove={(parentId) =>
+                selectedItem && moveItem(selectedItem.id, activeUser.id, parentId)
+              }
+              onDelete={() => {
+                if (selectedItem) {
+                  deleteItem(selectedItem.id, activeUser.id);
+                  updateUrl({ file: null });
+                }
+              }}
             />
           </div>
         </ScrollArea>
@@ -259,7 +308,13 @@ export function GoogleDriveApp() {
         onOpenChange={setNewFolderOpen}
         onCreate={(name) => {
           const id = createFolder(activeUser.id, folderId ?? null, name);
-          if (id) setNewFolderOpen(false);
+          if (id) {
+            setNewFolderOpen(false);
+            onAction?.({
+              type: "CREATE_FOLDER",
+              payload: { id, name, authorId: activeUser.id, parentId: folderId ?? null },
+            });
+          }
         }}
       />
       <UploadDialog
@@ -269,10 +324,17 @@ export function GoogleDriveApp() {
           const id = uploadFile({ ...input, actorId: activeUser.id, parentId: folderId ?? null });
           if (id) {
             setUploadOpen(false);
+            onAction?.({
+              type: "UPLOAD_FILE",
+              payload: { id, ...input, authorId: activeUser.id, parentId: folderId ?? null },
+            });
             updateUrl({ file: id });
           }
         }}
       />
+      {selectedItem && selectedItem.kind !== "folder" && (
+        <DocViewer item={selectedItem} onClose={() => updateUrl({ file: null })} />
+      )}
     </main>
   );
 }
@@ -304,7 +366,7 @@ function Sidebar({
       </div>
       <div className="space-y-2 p-3">
         <Button
-          className="h-11 w-full cursor-pointer justify-start rounded-full bg-white shadow-sm hover:bg-[#f1f3f4] dark:bg-[#2b2c30] dark:hover:bg-[#303134]"
+          className="h-11 w-full cursor-pointer justify-start rounded-full bg-white text-[#1f1f1f] shadow-sm hover:bg-[#f1f3f4] dark:bg-[#2b2c30] dark:text-[#e3e3e3] dark:hover:bg-[#303134]"
           onClick={onUpload}
         >
           <Plus className="size-5" />
@@ -385,11 +447,13 @@ function DriveItems({
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
-        <button
+        <div
           key={item.id}
           className="cursor-pointer rounded-xl border border-[#dadce0] bg-white p-3 text-left hover:border-[#1a73e8] dark:border-[#303134] dark:bg-[#1b1c1f]"
           onClick={() => onOpen(item)}
-          type="button"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === "Enter" && onOpen(item)}
         >
           <div className="flex items-center gap-2">
             {iconFor(item.kind)}
@@ -405,7 +469,7 @@ function DriveItems({
             <span>{relativeTime(item.updatedAt)}</span>
             <span className="ml-auto">{item.size}</span>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   );
@@ -427,10 +491,12 @@ function ItemRow({
   onRestore: (id: string) => void;
 }) {
   return (
-    <button
+    <div
       className="grid w-full cursor-pointer grid-cols-[1fr_auto] gap-3 border-b border-[#dadce0] p-3 text-left last:border-b-0 hover:bg-[#f8fafd] md:grid-cols-[1fr_8rem_8rem_8rem_auto] dark:border-[#303134] dark:hover:bg-[#303134]"
       onClick={() => onOpen(item)}
-      type="button"
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onOpen(item)}
     >
       <div className="flex min-w-0 items-center gap-3">
         {iconFor(item.kind)}
@@ -486,22 +552,30 @@ function ItemRow({
           </Button>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
 function Preview({
   item,
   activeUserId,
+  folders,
   onStar,
   onTrash,
   onShare,
+  onRename,
+  onMove,
+  onDelete,
 }: {
   item: DriveItem | null;
   activeUserId: string;
+  folders: DriveItem[];
   onStar: () => void;
   onTrash: () => void;
   onShare: (userId: string) => void;
+  onRename: (name: string) => void;
+  onMove: (parentId: string | null) => void;
+  onDelete: () => void;
 }) {
   if (!item)
     return (
@@ -513,7 +587,12 @@ function Preview({
     <aside className="rounded-xl border border-[#dadce0] bg-white p-4 dark:border-[#303134] dark:bg-[#1b1c1f]">
       <div className="flex items-center gap-2">
         {iconFor(item.kind)}
-        <h2 className="min-w-0 flex-1 truncate font-semibold">{item.name}</h2>
+        <Input
+          value={item.name}
+          onChange={(e) => onRename(e.target.value)}
+          className="h-8 font-semibold text-sm min-w-0"
+          disabled={item.ownerId !== activeUserId}
+        />
       </div>
       <div className="mt-4 rounded-lg bg-[#f1f3f4] p-5 text-sm leading-6 dark:bg-[#303134]">
         {item.content}
@@ -548,15 +627,48 @@ function Preview({
               ))}
           </SelectContent>
         </Select>
-        <Button
-          variant="outline"
-          className="cursor-pointer"
-          disabled={item.ownerId !== activeUserId}
-          onClick={onTrash}
-        >
-          <Trash2 className="size-4" />
-          Trash
-        </Button>
+        {item.trashed ? (
+          <Button
+            variant="destructive"
+            className="cursor-pointer"
+            disabled={item.ownerId !== activeUserId}
+            onClick={onDelete}
+          >
+            <Trash2 className="size-4" />
+            Delete Forever
+          </Button>
+        ) : (
+          <>
+            <Select
+              onValueChange={(val: string | null) =>
+                onMove(val === "root" ? null : (val as string | null))
+              }
+            >
+              <SelectTrigger className="cursor-pointer" disabled={item.ownerId !== activeUserId}>
+                <SelectValue placeholder="Move to..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="root">My Drive</SelectItem>
+                {folders
+                  .filter((f) => f.id !== item.id)
+                  .map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              disabled={item.ownerId !== activeUserId}
+              onClick={onTrash}
+            >
+              <Trash2 className="size-4" />
+              Trash
+            </Button>
+          </>
+        )}
       </div>
     </aside>
   );
@@ -572,6 +684,12 @@ function NewFolderDialog({
   onCreate: (name: string) => void;
 }) {
   const [name, setName] = useState("");
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setName("");
+    }
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -613,6 +731,16 @@ function UploadDialog({
   const [name, setName] = useState("");
   const [kind, setKind] = useState<DriveKind>("doc");
   const [content, setContent] = useState("");
+  useEffect(() => {
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setName("");
+
+      setKind("doc");
+
+      setContent("");
+    }
+  }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -659,5 +787,32 @@ function UploadDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+function DocViewer({ item, onClose }: { item: DriveItem; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#f8f9fa] dark:bg-[#1f1f1f]">
+      <header className="flex h-16 items-center gap-4 border-b border-[#dadce0] bg-white px-4 dark:border-[#303134] dark:bg-[#2b2c30]">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          className="cursor-pointer rounded-full"
+        >
+          <ArrowLeft className="size-5" />
+        </Button>
+        <div className="flex items-center gap-3">
+          {iconFor(item.kind)}
+          <span className="text-lg font-medium">{item.name}</span>
+        </div>
+      </header>
+      <main className="flex-1 overflow-auto p-4 sm:p-8">
+        <div className="mx-auto min-h-full max-w-4xl rounded-lg border border-[#dadce0] bg-white p-8 text-[#1f1f1f] shadow-sm dark:border-[#303134] dark:bg-[#2b2c30] dark:text-[#e3e3e3] sm:p-12">
+          <div className="whitespace-pre-wrap font-serif text-lg leading-relaxed">
+            {item.content || "Empty document"}
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

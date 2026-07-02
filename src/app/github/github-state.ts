@@ -99,6 +99,20 @@ export type GitHubState = GitHubSnapshot & {
   setIssueStatus: (issueId: string, userId: string, status: "open" | "closed") => void;
   mergePull: (pullId: string, userId: string) => void;
   markNotificationRead: (notificationId: string) => void;
+  markAllNotificationsRead: (userId: string) => void;
+  dismissNotification: (notificationId: string, userId: string) => void;
+  createPullRequest: (input: {
+    repoId: string;
+    authorId: string;
+    title: string;
+    body: string;
+    sourceBranch: string;
+    targetBranch: string;
+  }) => string;
+  updateIssueLabels: (issueId: string, userId: string, labels: string[]) => void;
+  updateIssueAssignees: (issueId: string, userId: string, assigneeIds: string[]) => void;
+  updateFileContent: (repoId: string, path: string, content: string, userId: string) => void;
+  createFile: (repoId: string, path: string, content: string, userId: string) => void;
 };
 
 export const githubTabs = ["code", "issues", "pulls", "notifications"] as const;
@@ -521,6 +535,107 @@ export const useGitHubStore = create<GitHubState>((set) => ({
         notifications: {
           ...state.notifications,
           [notificationId]: { ...notification, unread: false },
+        },
+      };
+    });
+  },
+  markAllNotificationsRead: (userId) => {
+    set((state) => {
+      const notifications = { ...state.notifications };
+      Object.keys(notifications).forEach((id) => {
+        if (notifications[id].userId === userId) {
+          notifications[id] = { ...notifications[id], unread: false };
+        }
+      });
+      return { notifications };
+    });
+  },
+  dismissNotification: (notificationId, userId) => {
+    set((state) => {
+      const notification = state.notifications[notificationId];
+      if (!notification || notification.userId !== userId) return state;
+      const notifications = { ...state.notifications };
+      delete notifications[notificationId];
+      return { notifications };
+    });
+  },
+  createPullRequest: (input) => {
+    const id = makeId("github-pr");
+    const timestamp = Date.now();
+    set((state) => {
+      if (!canAccessRepo(state.repos[input.repoId], input.authorId)) return state;
+      return {
+        pulls: {
+          ...state.pulls,
+          [id]: {
+            id,
+            repoId: input.repoId,
+            number: Object.keys(state.pulls).length + Object.keys(state.issues).length + 1,
+            title: input.title.trim(),
+            body: input.body.trim(),
+            status: "open",
+            sourceBranch: input.sourceBranch,
+            targetBranch: input.targetBranch,
+            authorId: input.authorId,
+            reviewerIds: [],
+            checks: [],
+            changedFiles: [],
+            comments: [],
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            timestamp,
+          },
+        },
+      };
+    });
+    return id;
+  },
+  updateIssueLabels: (issueId, userId, labels) => {
+    set((state) => {
+      const issue = state.issues[issueId];
+      if (!issue || !canAccessRepo(state.repos[issue.repoId], userId)) return state;
+      return {
+        issues: {
+          ...state.issues,
+          [issueId]: { ...issue, labels, updatedAt: Date.now() },
+        },
+      };
+    });
+  },
+  updateIssueAssignees: (issueId, userId, assigneeIds) => {
+    set((state) => {
+      const issue = state.issues[issueId];
+      if (!issue || !canAccessRepo(state.repos[issue.repoId], userId)) return state;
+      return {
+        issues: {
+          ...state.issues,
+          [issueId]: { ...issue, assigneeIds, updatedAt: Date.now() },
+        },
+      };
+    });
+  },
+  updateFileContent: (repoId, path, content, userId) => {
+    set((state) => {
+      if (!canAccessRepo(state.repos[repoId], userId)) return state;
+      const fileId = `${repoId}-${path}`;
+      const file = state.files[fileId];
+      if (!file) return state;
+      return {
+        files: {
+          ...state.files,
+          [fileId]: { ...file, content },
+        },
+      };
+    });
+  },
+  createFile: (repoId, path, content, userId) => {
+    set((state) => {
+      if (!canAccessRepo(state.repos[repoId], userId)) return state;
+      const fileId = `${repoId}-${path}`;
+      return {
+        files: {
+          ...state.files,
+          [fileId]: { repoId, path, type: "file", content },
         },
       };
     });
