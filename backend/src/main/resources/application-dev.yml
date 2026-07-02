@@ -5,9 +5,9 @@
 spring:
   # --- DataSource ---
   datasource:
-    url: jdbc:postgresql://localhost:5432/knowledge_nexus_dev
-    username: nexus
-    password: nexus_dev_password
+    url: jdbc:postgresql://localhost:5432/corpKRC
+    username: postgres
+    password: shruti
     driver-class-name: org.postgresql.Driver
 
   # --- JPA ---
@@ -28,8 +28,8 @@ jwt:
 
 # --- Cognee ---
 cognee:
-  base-url: ${COGNEE_BASE_URL:https://api.cognee.ai}
-  api-key: ${COGNEE_API_KEY:}
+  base-url: https://rohith--cognee-api-serve.modal.run
+  api-key: 2ad18e01c703848f01ba8176adb2887990a86b499f0eec43f845053e55693058
   connect-timeout-ms: 5000
   read-timeout-ms: 60000
 
