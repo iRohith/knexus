@@ -6,6 +6,9 @@ spring:
   application:
     name: knowledge-nexus
 
+  profiles:
+    active: dev
+
   # --- JPA / Hibernate ---
   jpa:
     open-in-view: false
