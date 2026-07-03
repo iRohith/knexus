@@ -43,3 +43,5 @@ next-env.d.ts
 .wrangler
 /local
 /public/corp-os-data
+playwright-report/
+test-results/

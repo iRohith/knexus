@@ -3,6 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { AlertOctagon, Archive, Clock, Inbox, Pencil, Send, Star, Tag, Trash2 } from "lucide-react";
 
 import { appUsers, defaultUser, userToRecipient } from "@/lib/users";
+import { useUserStore } from "@/lib/user-store";
 import {
   activeCorpusUserIds,
   actorEmail,
@@ -123,7 +124,11 @@ export type UndoState = {
 } | null;
 
 export const PAGE_SIZE = 50;
-export const CURRENT_USER: Recipient = userToRecipient(defaultUser);
+export function getCurrentUser(): Recipient {
+  const activeUserId = useUserStore.getState().activeUserId;
+  const user = appUsers.find((user) => user.id === activeUserId) ?? defaultUser;
+  return userToRecipient(user);
+}
 export const userLabels = ["Finance", "Team", "Product", "Travel", "Legal", "Customers"];
 
 export const folders: MailFolderItem[] = [
@@ -414,7 +419,7 @@ function buildInitialSnapshot(corpusThreads = corpusEventsFor("gmail")): MailSna
               ? [makeSampleAttachment(id, messageIndex)]
               : [],
           read: stableNumber(`${event.id}-${messageIndex}`, 3) !== 0,
-          sentByMe: sameMailbox(from.email, CURRENT_USER.email) || (isSent && messageIndex === 0),
+          sentByMe: sameMailbox(from.email, getCurrentUser().email) || (isSent && messageIndex === 0),
         });
         messages[message.id] = message;
         return message;
@@ -620,7 +625,7 @@ export const useGmailMailStore = create<GmailMailState>((set, get) => ({
           id,
           conversationId: input?.conversationId ?? null,
           mode: input?.mode ?? "compose",
-          from: input?.from ?? CURRENT_USER,
+          from: input?.from ?? getCurrentUser(),
           to: input?.to ?? [],
           cc: input?.cc ?? [],
           bcc: input?.bcc ?? [],
@@ -696,7 +701,7 @@ export const useGmailMailStore = create<GmailMailState>((set, get) => ({
     });
   },
 
-  startResponseDraft: (conversationId, messageId, mode, from = CURRENT_USER) => {
+  startResponseDraft: (conversationId, messageId, mode, from = getCurrentUser()) => {
     const state = get();
     const conversation = state.conversations[conversationId];
     const message = state.messages[messageId];

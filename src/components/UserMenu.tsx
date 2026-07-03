@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { appUsers } from "@/lib/users";
+import { appUsers, demoUserIds } from "@/lib/users";
 import { useActiveUser, useUserStore } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +42,10 @@ export function UserMenu() {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
           <ScrollArea className="max-h-96">
-            {appUsers.map((user) => (
+            {(demoUserIds
+              .map((id) => appUsers.find((u) => u.id === id))
+              .filter(Boolean) as NonNullable<(typeof appUsers)[number]>[])
+              .map((user) => (
               <DropdownMenuItem
                 key={user.id}
                 className="cursor-pointer gap-3"

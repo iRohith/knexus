@@ -135,51 +135,51 @@ function note(authorId: string, body: string, timestamp: number): LinearComment 
 }
 
 function buildInitialSnapshot(corpusIssues = corpusEventsFor("linear")): LinearSnapshot {
-  if (corpusIssues.length > 0) {
-    const memberIds = activeCorpusUserIds();
-    const teams: Record<string, LinearTeam> = {
-      product: {
-        id: "product",
-        key: "PM",
-        name: "Product",
-        description: "Roadmap, customer evidence, and launch planning.",
-        memberIds,
-      },
-      engineering: {
-        id: "engineering",
-        key: "ENG",
-        name: "Engineering",
-        description: "Runtime, platform, reliability, and implementation.",
-        memberIds,
-      },
-      design: {
-        id: "design",
-        key: "DES",
-        name: "Design",
-        description: "Console workflows, customer-facing UX, and handoff.",
-        memberIds,
-      },
+  const memberIds = activeCorpusUserIds();
+  const teams: Record<string, LinearTeam> = {
+    product: {
+      id: "product",
+      key: "PM",
+      name: "Product",
+      description: "Roadmap, customer evidence, and launch planning.",
+      memberIds,
+    },
+    engineering: {
+      id: "engineering",
+      key: "ENG",
+      name: "Engineering",
+      description: "Runtime, platform, reliability, and implementation.",
+      memberIds,
+    },
+    design: {
+      id: "design",
+      key: "DES",
+      name: "Design",
+      description: "Console workflows, customer-facing UX, and handoff.",
+      memberIds,
+    },
+  };
+  const projects: Record<string, LinearProject> = {};
+  const cycles: Record<string, LinearCycle> = {};
+  Object.values(teams).forEach((team, index) => {
+    projects[`${team.id}-evidence`] = {
+      id: `${team.id}-evidence`,
+      teamId: team.id,
+      name: "Customer Evidence to Execution",
+      targetDate: dateInput(Date.UTC(2026, 8 + index, 15)),
+      health: ["On track", "At risk", "On track"][index] as LinearProject["health"],
     };
-    const projects: Record<string, LinearProject> = {};
-    const cycles: Record<string, LinearCycle> = {};
-    Object.values(teams).forEach((team, index) => {
-      projects[`${team.id}-evidence`] = {
-        id: `${team.id}-evidence`,
-        teamId: team.id,
-        name: "Customer Evidence to Execution",
-        targetDate: dateInput(Date.UTC(2026, 8 + index, 15)),
-        health: ["On track", "At risk", "On track"][index] as LinearProject["health"],
-      };
-      cycles[`${team.id}-cycle`] = {
-        id: `${team.id}-cycle`,
-        teamId: team.id,
-        name: "Enterprise Readiness",
-        startsAt: "2026-06-15",
-        endsAt: "2026-07-12",
-      };
-    });
+    cycles[`${team.id}-cycle`] = {
+      id: `${team.id}-cycle`,
+      teamId: team.id,
+      name: "Enterprise Readiness",
+      startsAt: "2026-06-15",
+      endsAt: "2026-07-12",
+    };
+  });
 
-    const issues: Record<string, LinearIssue> = {};
+  const issues: Record<string, LinearIssue> = {};
+  if (corpusIssues.length > 0) {
     corpusIssues.forEach((event, index) => {
       const text = `${event.title} ${corpusText(event)}`.toLowerCase();
       const teamId = text.includes("design")

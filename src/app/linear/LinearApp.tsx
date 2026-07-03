@@ -499,9 +499,9 @@ function LinearSidebar({
             >
               <div className="flex items-center gap-2">
                 <span className="flex size-7 items-center justify-center rounded bg-[#5e6ad2] text-xs font-bold text-white">
-                  {team.key.slice(0, 2)}
+                  {team?.key?.slice(0, 2) ?? ""}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-medium">{team.name}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">{team?.name}</span>
                 <Badge variant="secondary">{activeCount}</Badge>
               </div>
             </button>
@@ -570,7 +570,7 @@ function Filters({
       />
       <MiniSelect
         value={assignee}
-        items={["all", "unassigned", ...team.memberIds]}
+        items={["all", "unassigned", ...(team?.memberIds || [])]}
         onValueChange={(value) => onChange({ assignee: value === "all" ? null : value })}
         renderItem={(value) => (value === "all" ? "All assignees" : userName(value))}
       />
@@ -735,7 +735,7 @@ function Roadmap({
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-semibold">{project.name}</h2>
+                <h2 className="font-semibold">{project?.name}</h2>
                 <p className="text-xs text-muted-foreground">Target {project.targetDate}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -819,7 +819,7 @@ function IssueDetail({
     <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1fr_20rem]">
       <div className="min-w-0">
         <Button variant="ghost" className="mb-3 cursor-pointer" onClick={onBack}>
-          Back to {team.name}
+          Back to {team?.name}
         </Button>
         <div className="rounded-md border border-[#e2e4ea] bg-white p-4 dark:border-[#2a2d36] dark:bg-[#171922]">
           <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
@@ -929,7 +929,7 @@ function IssueDetail({
           <Field label="Assignee">
             <MiniSelect
               value={issue.assigneeId ?? "unassigned"}
-              items={["unassigned", ...team.memberIds]}
+              items={["unassigned", ...(team?.memberIds || [])]}
               onValueChange={(value) => onAssignee(value === "unassigned" ? null : value)}
               renderItem={userName}
             />
@@ -1095,7 +1095,7 @@ function CreateIssueDialog({
         <DialogHeader>
           <DialogTitle>New Linear issue</DialogTitle>
           <DialogDescription>
-            {team.name} · created by {userName(activeUserId)}
+            {team?.name} · created by {userName(activeUserId)}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1123,7 +1123,7 @@ function CreateIssueDialog({
           <Field label="Assignee">
             <MiniSelect
               value={assigneeId ?? "unassigned"}
-              items={["unassigned", ...team.memberIds]}
+              items={["unassigned", ...(team?.memberIds || [])]}
               onValueChange={(value) => setAssigneeId(value === "unassigned" ? null : value)}
               renderItem={userName}
             />

@@ -1,5 +1,5 @@
 import type { ActivityEvent, SourceApp } from "@/app/admin/activity-state";
-import { appUsers } from "@/lib/users";
+import { appUsers, demoUserIds } from "@/lib/users";
 
 export type CorpusEvent = ActivityEvent;
 
@@ -186,7 +186,9 @@ export function buildCorpusUsers() {
 }
 
 export function activeCorpusUserIds(limit = 18) {
-  return appUsers.slice(0, limit).map((user) => user.id);
+  // Return the 10 canonical demo users first (from dataset ranking), then fill with others
+  const otherUsers = appUsers.filter((u) => !(demoUserIds as readonly string[]).includes(u.id)).map((u) => u.id);
+  return [...Array.from(demoUserIds), ...otherUsers].slice(0, Math.max(limit, demoUserIds.length));
 }
 
 export function allCorpusUserIds() {

@@ -504,9 +504,9 @@ function JiraSidebar({
             >
               <div className="flex items-center gap-2">
                 <span className="flex size-7 items-center justify-center rounded bg-[#0c66e4] text-xs font-bold text-white">
-                  {project.key.slice(0, 2)}
+                  {project?.key?.slice(0, 2) ?? ""}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">{project?.name}</span>
                 <Badge variant="secondary">{openCount}</Badge>
               </div>
               <div className="mt-1 truncate pl-9 text-xs text-muted-foreground">
@@ -548,13 +548,13 @@ function JiraFilters({
       <SmallSelect
         value={assignee}
         onValueChange={(value) => onChange({ assignee: value === "all" ? null : value })}
-        items={["all", "unassigned", ...project.memberIds]}
+        items={["all", "unassigned", ...(project?.memberIds || [])]}
         renderItem={(value) => (value === "all" ? "All assignees" : userName(value))}
       />
       <SmallSelect
         value={reporter}
         onValueChange={(value) => onChange({ reporter: value === "all" ? null : value })}
-        items={["all", ...project.memberIds]}
+        items={["all", ...(project?.memberIds || [])]}
         renderItem={(value) => (value === "all" ? "All reporters" : userName(value))}
       />
       <SmallSelect
@@ -737,7 +737,7 @@ function BacklogView({
           <div className="hidden md:block" onClick={(e) => e.stopPropagation()}>
             <SmallSelect
               value={issue.assigneeId ?? "unassigned"}
-              items={["unassigned", ...project.memberIds]}
+              items={["unassigned", ...(project?.memberIds || [])]}
               onValueChange={(value) =>
                 value && onAssignee(issue.id, value === "unassigned" ? null : value)
               }
@@ -818,7 +818,7 @@ function IssueDetail({
     <div className="mx-auto grid max-w-6xl gap-4 lg:grid-cols-[1fr_20rem]">
       <div className="min-w-0">
         <Button variant="ghost" className="mb-3 cursor-pointer" onClick={onBack}>
-          Back to {project.name}
+          Back to {project?.name}
         </Button>
         <div className="rounded-md border border-[#dfe1e6] bg-white p-4 dark:border-[#2c333a] dark:bg-[#161a1d]">
           <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
@@ -947,7 +947,7 @@ function IssueDetail({
           <DetailSelect
             label="Assignee"
             value={issue.assigneeId ?? "unassigned"}
-            items={["unassigned", ...project.memberIds]}
+            items={["unassigned", ...(project?.memberIds || [])]}
             onChange={(value) => onAssignee(value === "unassigned" ? null : value)}
             renderItem={(value) => userName(value)}
           />
@@ -1107,7 +1107,7 @@ function CreateIssueDialog({
         <DialogHeader>
           <DialogTitle>Create issue</DialogTitle>
           <DialogDescription>
-            {project.name} · reporter {userName(activeUserId)}
+            {project?.name} · reporter {userName(activeUserId)}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1140,7 +1140,7 @@ function CreateIssueDialog({
           <DialogField label="Assignee">
             <SmallSelect
               value={assigneeId ?? "unassigned"}
-              items={["unassigned", ...project.memberIds]}
+              items={["unassigned", ...(project?.memberIds || [])]}
               onValueChange={(value) => setAssigneeId(value === "unassigned" ? null : value)}
               renderItem={(value) => userName(value)}
             />

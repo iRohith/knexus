@@ -129,27 +129,28 @@ function userName(id: string) {
 }
 
 function buildInitialSnapshot(corpusIssues = corpusEventsFor("jira")): JiraSnapshot {
+  const memberIds = activeCorpusUserIds();
+  const projects: Record<string, JiraProject> = {
+    support: {
+      id: "support",
+      key: "SUP",
+      name: "Customer Support",
+      description: "Customer-facing Redwood Inference support work.",
+      leadId: memberIds[0],
+      memberIds,
+    },
+    internal: {
+      id: "internal",
+      key: "INT",
+      name: "Internal Support",
+      description: "Internal platform, compliance, and operational support.",
+      leadId: memberIds[1] ?? memberIds[0],
+      memberIds,
+    },
+  };
+  const issues: Record<string, JiraIssue> = {};
+
   if (corpusIssues.length > 0) {
-    const memberIds = activeCorpusUserIds();
-    const projects: Record<string, JiraProject> = {
-      support: {
-        id: "support",
-        key: "SUP",
-        name: "Customer Support",
-        description: "Customer-facing Redwood Inference support work.",
-        leadId: memberIds[0],
-        memberIds,
-      },
-      internal: {
-        id: "internal",
-        key: "INT",
-        name: "Internal Support",
-        description: "Internal platform, compliance, and operational support.",
-        leadId: memberIds[1] ?? memberIds[0],
-        memberIds,
-      },
-    };
-    const issues: Record<string, JiraIssue> = {};
 
     corpusIssues.forEach((event, index) => {
       const projectId = event.sourceEntityId.startsWith("INT") ? "internal" : "support";
@@ -217,7 +218,7 @@ function buildInitialSnapshot(corpusIssues = corpusEventsFor("jira")): JiraSnaps
     return { projects, issues };
   }
 
-  return { projects: {}, issues: {} };
+  return { projects, issues };
 }
 
 export function canAccessProject(project: JiraProject | undefined, userId: string) {
