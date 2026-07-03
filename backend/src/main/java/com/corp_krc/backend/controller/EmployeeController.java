@@ -7,6 +7,8 @@ import com.corp_krc.backend.dto.response.PagedResponse;
 import com.corp_krc.backend.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -32,7 +34,7 @@ public class EmployeeController {
 
     @GetMapping
     public ResponseEntity<PagedResponse<EmployeeResponse>> getAllEmployees(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(employeeService.getAllEmployees(pageable));
     }
 
