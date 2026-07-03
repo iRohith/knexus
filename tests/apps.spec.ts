@@ -123,7 +123,7 @@ test.describe('Corp-OS Data Density E2E Tests', () => {
       expect(errors, `Linear threw exceptions: ${errors.join(', ')}`).toHaveLength(0);
 
       // Should show some items in the main content area
-      const items = page.locator('main button');
+      const items = page.locator('main [data-testid="issue-card"]');
       const count = await items.count();
       console.log(`Linear items visible: ${count}`);
       expect(count, 'Linear must show some issues').toBeGreaterThan(0);
@@ -141,7 +141,7 @@ test.describe('Corp-OS Data Density E2E Tests', () => {
 
       expect(errors, `Jira threw exceptions: ${errors.join(', ')}`).toHaveLength(0);
 
-      const items = page.locator('main button');
+      const items = page.locator('main [data-testid="issue-card"]');
       const count = await items.count();
       console.log(`Jira items visible: ${count}`);
     });

@@ -115,9 +115,24 @@ function buildInitialSnapshot(corpusThreads = corpusEventsFor("slack")): SlackSn
       new Set([...activeCorpusUserIds(), ...appUsers.slice(0, 8).map((u) => u.id)]),
     );
 
+    const dmUsers = memberIds.slice(0, 4);
+    const dms = Object.fromEntries(
+      dmUsers
+        .slice(1)
+        .map((userId) => [
+          `dm-${dmUsers[0]}-${userId}`,
+          { id: `dm-${dmUsers[0]}-${userId}`, participantIds: [dmUsers[0], userId] },
+        ]),
+    );
+
     corpusThreads.forEach((event, index) => {
+      const isDm = index % 8 === 0;
+      const surfaceType = isDm ? "dm" : "channel";
       const channelName = event.title.match(/^#([^:]+):/)?.[1] ?? "all-hands";
-      if (!channels[channelName]) {
+      const dmId = `dm-${dmUsers[0]}-${dmUsers[(index % 3) + 1]}`;
+      const surfaceId = isDm ? dmId : channelName;
+
+      if (!isDm && !channels[channelName]) {
         channels[channelName] = {
           id: channelName,
           name: channelName,
@@ -148,8 +163,8 @@ function buildInitialSnapshot(corpusThreads = corpusEventsFor("slack")): SlackSn
 
         messages[messageId] = {
           id: messageId,
-          surfaceId: channelName,
-          surfaceType: "channel",
+          surfaceId,
+          surfaceType,
           threadParentId: messageIndex === 0 ? null : parentId,
           authorId: corpusUserIdFromName(author, event.actorId),
           body,
@@ -167,15 +182,6 @@ function buildInitialSnapshot(corpusThreads = corpusEventsFor("slack")): SlackSn
       });
     });
 
-    const dmUsers = memberIds.slice(0, 4);
-    const dms = Object.fromEntries(
-      dmUsers
-        .slice(1)
-        .map((userId) => [
-          `dm-${dmUsers[0]}-${userId}`,
-          { id: `dm-${dmUsers[0]}-${userId}`, participantIds: [dmUsers[0], userId] },
-        ]),
-    );
 
     return { channels, dms, messages };
   }
