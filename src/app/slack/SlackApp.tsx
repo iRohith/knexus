@@ -52,6 +52,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { useActiveUser } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
+import { refreshCorpusManifest } from "@/lib/corpus-app-data";
 import {
   canAccessSurface,
   dmTitle,
@@ -81,6 +82,7 @@ export function SlackApp({
   const channels = useSlackStore((state) => state.channels);
   const dms = useSlackStore((state) => state.dms);
   const messages = useSlackStore((state) => state.messages);
+  const loadCorpusPage = useSlackStore((state) => state.loadCorpusPage);
   const sendMessage = useSlackStore((state) => state.sendMessage);
   const editMessage = useSlackStore((state) => state.editMessage);
   const deleteMessage = useSlackStore((state) => state.deleteMessage);
@@ -105,8 +107,49 @@ export function SlackApp({
   const updateChannelTopic = useSlackStore((state) => state.updateChannelTopic);
   const addChannelMembers = useSlackStore((state) => state.addChannelMembers);
   const [attachments, setAttachments] = useState<SlackAttachment[]>([]);
+  const [corpusPage, setCorpusPage] = useState(0);
+  const [corpusPageCount, setCorpusPageCount] = useState(0);
+  const [corpusEventCount, setCorpusEventCount] = useState(0);
+  const [corpusLoading, setCorpusLoading] = useState(false);
   const previousUserId = useRef(activeUser.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialCorpus() {
+      setCorpusLoading(true);
+      try {
+        const manifest = await refreshCorpusManifest();
+        const app = manifest.apps.slack;
+        if (cancelled) return;
+        setCorpusPageCount(app?.pageCount ?? 0);
+        setCorpusEventCount(app?.count ?? 0);
+        const count = await loadCorpusPage(1);
+        if (cancelled) return;
+        if (count > 0) setCorpusPage(1);
+      } finally {
+        if (!cancelled) setCorpusLoading(false);
+      }
+    }
+
+    void loadInitialCorpus();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadCorpusPage]);
+
+  async function loadNextCorpusPage() {
+    if (corpusLoading || corpusPage >= corpusPageCount) return;
+    const nextPage = corpusPage + 1;
+    setCorpusLoading(true);
+    try {
+      const count = await loadCorpusPage(nextPage);
+      if (count > 0) setCorpusPage(nextPage);
+    } finally {
+      setCorpusLoading(false);
+    }
+  }
 
   const channelParam = searchParams.get("channel");
   const dmParam = searchParams.get("dm");
@@ -340,6 +383,11 @@ export function SlackApp({
         updateUrl({ dm: id, channel: null, thread: null, message: null, q: null });
         setSidebarOpen(false);
       }}
+      corpusPage={corpusPage}
+      corpusPageCount={corpusPageCount}
+      corpusEventCount={corpusEventCount}
+      corpusLoading={corpusLoading}
+      onLoadMore={loadNextCorpusPage}
     />
   );
 
@@ -837,6 +885,11 @@ function SlackSidebar({
   onCreateDm,
   onChannel,
   onDm,
+  corpusPage,
+  corpusPageCount,
+  corpusEventCount,
+  corpusLoading,
+  onLoadMore,
 }: {
   onCreateChannel: () => void;
   onCreateDm: () => void;
@@ -848,6 +901,11 @@ function SlackSidebar({
   unreadBySurface: Record<string, number>;
   onChannel: (id: string) => void;
   onDm: (id: string) => void;
+  corpusPage: number;
+  corpusPageCount: number;
+  corpusEventCount: number;
+  corpusLoading: boolean;
+  onLoadMore: () => void;
 }) {
   return (
     <div className="flex h-full flex-col">
@@ -904,6 +962,31 @@ function SlackSidebar({
           </SidebarSection>
         </div>
       </ScrollArea>
+      <div className="border-t border-white/10 p-3">
+        <div className="mb-2 flex items-center justify-between gap-2 text-xs text-white/60">
+          <span className="truncate">Corpus</span>
+          <span className="shrink-0">
+            {corpusPageCount > 0 ? `${corpusPage}/${corpusPageCount}` : "0/0"}
+          </span>
+        </div>
+        <div className="mb-2 truncate text-xs text-white/50">
+          {new Intl.NumberFormat("en-US").format(corpusEventCount)} Slack events available
+        </div>
+        <Button
+          className="h-8 w-full cursor-pointer border-white/15 bg-white/10 text-white hover:bg-white/15"
+          disabled={corpusLoading || corpusPage >= corpusPageCount || corpusPageCount === 0}
+          onClick={onLoadMore}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          {corpusLoading
+            ? "Loading..."
+            : corpusPage >= corpusPageCount && corpusPageCount > 0
+              ? "All loaded"
+              : "Load more"}
+        </Button>
+      </div>
     </div>
   );
 }

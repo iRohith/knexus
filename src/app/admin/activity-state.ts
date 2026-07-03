@@ -2,15 +2,7 @@
 
 import { create } from "zustand";
 
-import { useConfluenceStore } from "@/app/confluence/confluence-state";
-import { useFirefliesStore } from "@/app/fireflies/fireflies-state";
-import { useGitHubStore } from "@/app/github/github-state";
-import { useGmailMailStore } from "@/app/gmail/mail-state";
-import { useDriveStore } from "@/app/google-drive/drive-state";
-import { useHubSpotStore } from "@/app/hubspot/hubspot-state";
-import { useJiraStore } from "@/app/jira/jira-state";
-import { useLinearStore } from "@/app/linear/linear-state";
-import { useSlackStore } from "@/app/slack/slack-state";
+import { loadCorpusEventsFor } from "@/lib/corpus-app-data";
 import { appUsers } from "@/lib/users";
 
 export type SourceApp =
@@ -116,6 +108,8 @@ type ActivityState = {
   events: Record<string, ActivityEvent>;
   focusedEventId: string | null;
   processingRuns: Record<string, ProcessingRun>;
+  loadCorpusPage: (page?: number, eventsPerApp?: number) => Promise<void>;
+  loadCorpusAppPage: (app: SourceApp, page?: number) => Promise<void>;
   appendEvent: (input: ActivityEventInput) => string;
   toggleEventSelected: (eventId: string, selected: boolean) => void;
   toggleEventsSelected: (eventIds: string[], selected: boolean) => void;
@@ -240,427 +234,69 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function seeded(input: Omit<ActivityEvent, "selected" | "metadata"> & { metadata?: JsonRecord }) {
+function buildDefaults() {
+  return {};
+}
+
+const initialCorpusEvents = buildDefaults();
+const defaultAdminEventsPerApp = 25;
+
+function markCorpusEvent(event: ActivityEvent): ActivityEvent {
   return {
-    ...input,
+    ...event,
     selected: true,
     metadata: {
+      ...event.metadata,
       seeded: true,
-      sourceSystem: sourceAppMeta[input.sourceApp].sourceSystem,
-      ...(input.metadata ?? {}),
+      generatedDataset: true,
     },
-  } satisfies ActivityEvent;
-}
-
-function buildDefaults() {
-  const events: Record<string, ActivityEvent> = {};
-  const add = (event: ActivityEvent) => {
-    events[event.id] = event;
   };
-
-  const gmail = useGmailMailStore.getState();
-  Object.values(gmail.conversations)
-    .slice(0, 8)
-    .forEach((conversation) => {
-      const message = conversation.messageIds
-        .map((id) => gmail.messages[id])
-        .filter(Boolean)
-        .at(-1);
-      if (!message) return;
-      add(
-        seeded({
-          id: `seeded-gmail-${conversation.id}`,
-          sourceApp: "gmail",
-          actorId: appUsers.find((user) => user.email === message.from.email)?.id ?? "riley",
-          occurredAt: message.timestamp,
-          type: message.sentByMe ? "message" : "reply",
-          action: message.sentByMe ? "Sent email" : "Received email",
-          title: conversation.subject,
-          body: message.body,
-          sourceEntityId: conversation.id,
-          sourceEntityType: "conversation",
-          sourceUrl: `/gmail?folder=inbox&page=1&id=${conversation.id}`,
-          metadata: {
-            messageId: message.id,
-            labelIds: conversation.userLabels,
-            attachmentCount: message.attachments.length,
-          },
-        }),
-      );
-    });
-
-  const slack = useSlackStore.getState();
-  Object.values(slack.messages)
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 12)
-    .forEach((message) => {
-      const params =
-        message.surfaceType === "channel"
-          ? `channel=${message.surfaceId}`
-          : `dm=${message.surfaceId}`;
-      const thread = message.threadParentId ? `&thread=${message.threadParentId}` : "";
-      add(
-        seeded({
-          id: `seeded-slack-${message.id}`,
-          sourceApp: "slack",
-          actorId: message.authorId,
-          occurredAt: message.timestamp,
-          type: message.threadParentId ? "reply" : "message",
-          action: message.threadParentId ? "Replied in Slack thread" : "Posted Slack message",
-          title:
-            message.surfaceType === "channel"
-              ? `#${slack.channels[message.surfaceId]?.name ?? message.surfaceId}`
-              : "Direct message",
-          body: message.body,
-          sourceEntityId: message.id,
-          sourceEntityType: message.threadParentId ? "thread_reply" : "message",
-          sourceUrl: `/slack?${params}${thread}&message=${message.id}#${message.id}`,
-          metadata: {
-            surfaceType: message.surfaceType,
-            surfaceId: message.surfaceId,
-            threadParentId: message.threadParentId,
-            attachmentCount: message.attachments.length,
-          },
-        }),
-      );
-    });
-
-  const github = useGitHubStore.getState();
-  Object.values(github.issues)
-    .slice(0, 6)
-    .forEach((issue) => {
-      add(
-        seeded({
-          id: `seeded-github-issue-${issue.id}`,
-          sourceApp: "github",
-          actorId: issue.authorId,
-          occurredAt: issue.updatedAt,
-          type: "create",
-          action: "Opened GitHub issue",
-          title: issue.title,
-          body: issue.body,
-          sourceEntityId: issue.id,
-          sourceEntityType: "issue",
-          sourceUrl: `/github?repo=${issue.repoId}&tab=issues&issue=${issue.id}#${issue.id}-body`,
-          metadata: { repoId: issue.repoId, number: issue.number, labels: issue.labels },
-        }),
-      );
-      issue.comments.slice(-1).forEach((comment) =>
-        add(
-          seeded({
-            id: `seeded-github-comment-${comment.id}`,
-            sourceApp: "github",
-            actorId: comment.authorId,
-            occurredAt: comment.timestamp,
-            type: "comment",
-            action: "Commented on GitHub issue",
-            title: issue.title,
-            body: comment.body,
-            sourceEntityId: comment.id,
-            sourceEntityType: "issue_comment",
-            sourceUrl: `/github?repo=${issue.repoId}&tab=issues&issue=${issue.id}#${comment.id}`,
-            metadata: { repoId: issue.repoId, issueId: issue.id, number: issue.number },
-          }),
-        ),
-      );
-    });
-  Object.values(github.pulls)
-    .slice(0, 4)
-    .forEach((pull) =>
-      add(
-        seeded({
-          id: `seeded-github-pr-${pull.id}`,
-          sourceApp: "github",
-          actorId: pull.authorId,
-          occurredAt: pull.updatedAt,
-          type: pull.status === "merged" ? "status_change" : "create",
-          action:
-            pull.status === "merged" ? "Merged GitHub pull request" : "Opened GitHub pull request",
-          title: pull.title,
-          body: pull.body,
-          sourceEntityId: pull.id,
-          sourceEntityType: "pull_request",
-          sourceUrl: `/github?repo=${pull.repoId}&tab=pulls&pr=${pull.id}#${pull.id}-body`,
-          metadata: { repoId: pull.repoId, number: pull.number, status: pull.status },
-        }),
-      ),
-    );
-
-  const linear = useLinearStore.getState();
-  Object.values(linear.issues)
-    .slice(0, 8)
-    .forEach((issue) => {
-      add(
-        seeded({
-          id: `seeded-linear-${issue.id}`,
-          sourceApp: "linear",
-          actorId: issue.creatorId,
-          occurredAt: issue.updatedAt,
-          type: "status_change",
-          action: `Linear issue is ${issue.status}`,
-          title: issue.title,
-          body: issue.description,
-          sourceEntityId: issue.id,
-          sourceEntityType: "issue",
-          sourceUrl: `/linear?team=${issue.teamId}&view=list&issue=${issue.id}`,
-          metadata: { identifier: issue.identifier, priority: issue.priority },
-        }),
-      );
-      issue.comments.slice(-1).forEach((comment) =>
-        add(
-          seeded({
-            id: `seeded-linear-comment-${comment.id}`,
-            sourceApp: "linear",
-            actorId: comment.authorId,
-            occurredAt: comment.timestamp,
-            type: "comment",
-            action: "Commented on Linear issue",
-            title: issue.title,
-            body: comment.body,
-            sourceEntityId: comment.id,
-            sourceEntityType: "issue_comment",
-            sourceUrl: `/linear?team=${issue.teamId}&view=list&issue=${issue.id}#${comment.id}`,
-            metadata: { issueId: issue.id, identifier: issue.identifier },
-          }),
-        ),
-      );
-    });
-
-  const jira = useJiraStore.getState();
-  Object.values(jira.issues)
-    .slice(0, 8)
-    .forEach((issue) => {
-      add(
-        seeded({
-          id: `seeded-jira-${issue.id}`,
-          sourceApp: "jira",
-          actorId: issue.reporterId,
-          occurredAt: issue.updatedAt,
-          type: "status_change",
-          action: `Jira issue is ${issue.status}`,
-          title: issue.summary,
-          body: issue.description,
-          sourceEntityId: issue.id,
-          sourceEntityType: "issue",
-          sourceUrl: `/jira?project=${issue.projectId}&view=board&issue=${issue.id}`,
-          metadata: { key: issue.key, priority: issue.priority, type: issue.type },
-        }),
-      );
-      issue.comments.slice(-1).forEach((comment) =>
-        add(
-          seeded({
-            id: `seeded-jira-comment-${comment.id}`,
-            sourceApp: "jira",
-            actorId: comment.authorId,
-            occurredAt: comment.timestamp,
-            type: "comment",
-            action: "Commented on Jira issue",
-            title: issue.summary,
-            body: comment.body,
-            sourceEntityId: comment.id,
-            sourceEntityType: "issue_comment",
-            sourceUrl: `/jira?project=${issue.projectId}&view=board&issue=${issue.id}#${comment.id}`,
-            metadata: { issueId: issue.id, key: issue.key },
-          }),
-        ),
-      );
-    });
-
-  const hubspot = useHubSpotStore.getState();
-  Object.values(hubspot.contacts)
-    .slice(0, 5)
-    .forEach((contact) => {
-      add(
-        seeded({
-          id: `seeded-hubspot-contact-${contact.id}`,
-          sourceApp: "hubspot",
-          actorId: contact.ownerId,
-          occurredAt: contact.lastActivityAt,
-          type: "crm_action",
-          action: "Updated HubSpot contact",
-          title: contact.name,
-          body: `${contact.title} at ${hubspot.companies[contact.companyId]?.name ?? "company"}.`,
-          sourceEntityId: contact.id,
-          sourceEntityType: "contact",
-          sourceUrl: `/hubspot?view=contacts&contact=${contact.id}`,
-          metadata: { companyId: contact.companyId, stage: contact.stage },
-        }),
-      );
-      contact.notes.slice(-1).forEach((note) =>
-        add(
-          seeded({
-            id: `seeded-hubspot-note-${note.id}`,
-            sourceApp: "hubspot",
-            actorId: note.authorId,
-            occurredAt: note.timestamp,
-            type: "crm_action",
-            action: "Added HubSpot contact note",
-            title: contact.name,
-            body: note.body,
-            sourceEntityId: note.id,
-            sourceEntityType: "contact_note",
-            sourceUrl: `/hubspot?view=contacts&contact=${contact.id}#${note.id}`,
-            metadata: { contactId: contact.id, companyId: contact.companyId },
-          }),
-        ),
-      );
-    });
-  Object.values(hubspot.deals)
-    .slice(0, 5)
-    .forEach((deal) =>
-      add(
-        seeded({
-          id: `seeded-hubspot-deal-${deal.id}`,
-          sourceApp: "hubspot",
-          actorId: deal.ownerId,
-          occurredAt: deal.updatedAt,
-          type: "crm_action",
-          action: `HubSpot deal is ${deal.stage}`,
-          title: deal.name,
-          body: `${deal.name} is valued at ${deal.amount}.`,
-          sourceEntityId: deal.id,
-          sourceEntityType: "deal",
-          sourceUrl: `/hubspot?view=deals&deal=${deal.id}`,
-          metadata: { companyId: deal.companyId, contactId: deal.contactId, stage: deal.stage },
-        }),
-      ),
-    );
-
-  const drive = useDriveStore.getState();
-  Object.values(drive.items)
-    .slice(0, 9)
-    .forEach((item) =>
-      add(
-        seeded({
-          id: `seeded-drive-${item.id}`,
-          sourceApp: "google-drive",
-          actorId: item.ownerId,
-          occurredAt: item.updatedAt,
-          type: item.kind === "folder" ? "create" : "file_action",
-          action:
-            item.kind === "folder" ? "Created Google Drive folder" : "Updated Google Drive file",
-          title: item.name,
-          body: item.content,
-          sourceEntityId: item.id,
-          sourceEntityType: item.kind,
-          sourceUrl:
-            item.kind === "folder"
-              ? `/google-drive?view=my-drive&folder=${item.id}`
-              : `/google-drive?view=my-drive&file=${item.id}`,
-          metadata: { kind: item.kind, parentId: item.parentId, sharedWith: item.sharedWith },
-        }),
-      ),
-    );
-
-  const confluence = useConfluenceStore.getState();
-  Object.values(confluence.pages)
-    .slice(0, 8)
-    .forEach((page) => {
-      add(
-        seeded({
-          id: `seeded-confluence-${page.id}`,
-          sourceApp: "confluence",
-          actorId: page.authorId,
-          occurredAt: page.updatedAt,
-          type: "update",
-          action: "Updated Confluence page",
-          title: page.title,
-          body: page.body,
-          sourceEntityId: page.id,
-          sourceEntityType: "page",
-          sourceUrl: `/confluence?space=${page.spaceId}&page=${page.id}`,
-          metadata: { labels: page.labels, spaceId: page.spaceId },
-        }),
-      );
-      page.comments.slice(-1).forEach((comment) =>
-        add(
-          seeded({
-            id: `seeded-confluence-comment-${comment.id}`,
-            sourceApp: "confluence",
-            actorId: comment.authorId,
-            occurredAt: comment.timestamp,
-            type: "comment",
-            action: "Commented on Confluence page",
-            title: page.title,
-            body: comment.body,
-            sourceEntityId: comment.id,
-            sourceEntityType: "page_comment",
-            sourceUrl: `/confluence?space=${page.spaceId}&page=${page.id}#${comment.id}`,
-            metadata: { pageId: page.id, spaceId: page.spaceId },
-          }),
-        ),
-      );
-    });
-
-  const fireflies = useFirefliesStore.getState();
-  Object.values(fireflies.meetings)
-    .slice(0, 8)
-    .forEach((meeting) => {
-      add(
-        seeded({
-          id: `seeded-fireflies-${meeting.id}`,
-          sourceApp: "fireflies",
-          actorId: meeting.ownerId,
-          occurredAt: meeting.updatedAt,
-          type: "meeting_action",
-          action: "Updated Fireflies meeting",
-          title: meeting.title,
-          body: meeting.summary,
-          sourceEntityId: meeting.id,
-          sourceEntityType: "meeting",
-          sourceUrl: `/fireflies?view=all&meeting=${meeting.id}`,
-          metadata: { attendeeIds: meeting.attendeeIds, topics: meeting.topics },
-        }),
-      );
-      meeting.actionItems.slice(0, 1).forEach((item) =>
-        add(
-          seeded({
-            id: `seeded-fireflies-action-${item.id}`,
-            sourceApp: "fireflies",
-            actorId: item.ownerId,
-            occurredAt: meeting.updatedAt,
-            type: "meeting_action",
-            action: item.completed
-              ? "Completed Fireflies action item"
-              : "Created Fireflies action item",
-            title: meeting.title,
-            body: item.text,
-            sourceEntityId: item.id,
-            sourceEntityType: "action_item",
-            sourceUrl: `/fireflies?view=actions&meeting=${meeting.id}#${item.id}`,
-            metadata: { meetingId: meeting.id, completed: item.completed },
-          }),
-        ),
-      );
-      meeting.comments.slice(-1).forEach((comment) =>
-        add(
-          seeded({
-            id: `seeded-fireflies-comment-${comment.id}`,
-            sourceApp: "fireflies",
-            actorId: comment.authorId,
-            occurredAt: comment.timestamp,
-            type: "comment",
-            action: "Commented on Fireflies meeting",
-            title: meeting.title,
-            body: comment.body,
-            sourceEntityId: comment.id,
-            sourceEntityType: "meeting_comment",
-            sourceUrl: `/fireflies?view=all&meeting=${meeting.id}#${comment.id}`,
-            metadata: { meetingId: meeting.id },
-          }),
-        ),
-      );
-    });
-
-  return events;
 }
 
-const initialDemoEvents = buildDefaults();
+function mergeCorpusEvents(events: ActivityEvent[]) {
+  return Object.fromEntries(events.map((event) => [event.id, markCorpusEvent(event)]));
+}
+
+function searchableMetadataText(metadata: JsonRecord) {
+  return [
+    metadata.actorName,
+    metadata.actorEmail,
+    metadata.actorInitials,
+    metadata.sourcePath,
+    metadata.cleanBody,
+    metadata.repository,
+    metadata.project,
+    metadata.channel,
+    metadata.threadTitle,
+    metadata.customer,
+    metadata.company,
+  ]
+    .filter((value): value is string => typeof value === "string")
+    .join(" ");
+}
 
 export const useActivityStore = create<ActivityState>((set) => ({
-  events: initialDemoEvents,
+  events: initialCorpusEvents,
   focusedEventId: null,
   processingRuns: {},
+  loadCorpusPage: async (page = 1, eventsPerApp = defaultAdminEventsPerApp) => {
+    const pages = await Promise.all(
+      sourceApps.map(async (app) => {
+        const events = await loadCorpusEventsFor(app, page);
+        return events.slice(0, eventsPerApp);
+      }),
+    );
+    const events = mergeCorpusEvents(pages.flat());
+    set((state) => ({
+      events: { ...state.events, ...events },
+    }));
+  },
+  loadCorpusAppPage: async (app, page = 1) => {
+    const events = mergeCorpusEvents(await loadCorpusEventsFor(app, page));
+    set((state) => ({
+      events: { ...state.events, ...events },
+    }));
+  },
   appendEvent: (input) => {
     const id = input.id ?? makeId(`activity-${input.sourceApp}`);
     const event: ActivityEvent = {
@@ -801,7 +437,7 @@ export function filterActivityEvents(events: ActivityEvent[], filters: ActivityF
       event.body,
       event.sourceEntityId,
       event.sourceEntityType,
-      JSON.stringify(event.metadata),
+      searchableMetadataText(event.metadata),
     ]
       .join(" ")
       .toLowerCase();

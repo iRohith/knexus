@@ -3,6 +3,14 @@
 import { create } from "zustand";
 
 import { appUsers } from "@/lib/users";
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusNormalizedRecords,
+  corpusText,
+  corpusUserIdFromName,
+  loadCorpusEventsFor,
+} from "@/lib/corpus-app-data";
 
 export type SlackAttachment = {
   id: string;
@@ -52,6 +60,7 @@ export type SlackSnapshot = {
 };
 
 export type SlackState = SlackSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<number>;
   sendMessage: (input: {
     surfaceType: "channel" | "dm";
     surfaceId: string;
@@ -87,52 +96,6 @@ function canAuthorPost(
   return Boolean(snapshot.dms[input.surfaceId]?.participantIds.includes(input.userId));
 }
 
-const channelSeeds: SlackChannel[] = [
-  {
-    id: "team-updates",
-    name: "team-updates",
-    description: "Announcements, weekly goals, and launch notes.",
-    topic: "Product launches, planning updates, and decision logs",
-    memberIds: ["riley", "maya", "ari"],
-    starredBy: ["riley", "maya"],
-  },
-  {
-    id: "design-review",
-    name: "design-review",
-    description: "UX critiques and implementation handoff.",
-    topic: "Review flows before engineering picks them up",
-    memberIds: ["riley", "maya"],
-    starredBy: ["maya"],
-  },
-  {
-    id: "engineering",
-    name: "engineering",
-    description: "Builds, incidents, code review, and platform work.",
-    topic: "Keep main green and unblock launches",
-    memberIds: ["riley", "ari"],
-    starredBy: ["ari"],
-  },
-  {
-    id: "customer-room",
-    name: "customer-room",
-    description: "Customer escalations and expansion notes.",
-    topic: "High-priority customer follow-up",
-    memberIds: ["maya", "ari"],
-    starredBy: [],
-  },
-];
-
-const bodies = [
-  "Morning update: the inbox polish pass is ready for review. I left notes on keyboard focus and empty states.",
-  "Can someone sanity-check the launch checklist before standup?",
-  "The customer call surfaced two follow-ups: permissions audit and export copy.",
-  "I updated the sample activity so account switching has more realistic cross-user context.",
-  "Heads up, the prototype now keeps detail views URL-backed without leaking stale state.",
-  "The board looks clean. Only blocker is attachment preview copy.",
-  "I added a short decision log to keep the thread readable later.",
-  "This is good to ship after one more mobile pass.",
-];
-
 function makeAttachment(seed: string): SlackAttachment {
   const index = Math.abs(seed.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0));
   const extension = ["pdf", "png", "fig", "csv"][index % 4];
@@ -144,87 +107,80 @@ function makeAttachment(seed: string): SlackAttachment {
   };
 }
 
-function buildInitialSnapshot(): SlackSnapshot {
-  const channels = Object.fromEntries(channelSeeds.map((channel) => [channel.id, channel]));
-  const dms: Record<string, SlackDm> = {
-    "dm-riley-maya": { id: "dm-riley-maya", participantIds: ["riley", "maya"] },
-    "dm-riley-ari": { id: "dm-riley-ari", participantIds: ["riley", "ari"] },
-    "dm-maya-ari": { id: "dm-maya-ari", participantIds: ["maya", "ari"] },
-  };
-  const messages: Record<string, SlackMessage> = {};
-  const now = Date.UTC(2026, 6, 2, 9, 0);
-  let counter = 1;
+function buildInitialSnapshot(corpusThreads = corpusEventsFor("slack")): SlackSnapshot {
+  if (corpusThreads.length > 0) {
+    const channels: Record<string, SlackChannel> = {};
+    const messages: Record<string, SlackMessage> = {};
+    const memberIds = Array.from(
+      new Set([...activeCorpusUserIds(), ...appUsers.slice(0, 8).map((u) => u.id)]),
+    );
 
-  channelSeeds.forEach((channel, channelIndex) => {
-    for (let index = 0; index < 14; index += 1) {
-      const authorId = channel.memberIds[(index + channelIndex) % channel.memberIds.length];
-      const id = `slack-msg-${counter}`;
-      counter += 1;
-      messages[id] = {
-        id,
-        surfaceId: channel.id,
-        surfaceType: "channel",
-        threadParentId: null,
-        authorId,
-        body: bodies[(index + channelIndex) % bodies.length],
-        timestamp: now - (channelIndex * 20 + index) * 19 * 60 * 1000,
-        edited: index % 9 === 0,
-        deleted: false,
-        readBy: index % 5 === 0 ? [authorId] : [...channel.memberIds],
-        reactions:
-          index % 3 === 0
-            ? [{ emoji: index % 2 === 0 ? "✅" : "👀", userIds: channel.memberIds.slice(0, 2) }]
-            : [],
-        attachments: index % 6 === 0 ? [makeAttachment(`${channel.name}-${index}`)] : [],
-      };
-
-      if (index % 5 === 0) {
-        const replyId = `slack-msg-${counter}`;
-        counter += 1;
-        messages[replyId] = {
-          id: replyId,
-          surfaceId: channel.id,
-          surfaceType: "channel",
-          threadParentId: id,
-          authorId: channel.memberIds[(index + 1) % channel.memberIds.length],
-          body: "Thread follow-up: I added the context and a concrete next step.",
-          timestamp: messages[id].timestamp + 6 * 60 * 1000,
-          edited: false,
-          deleted: false,
-          readBy: [...channel.memberIds],
-          reactions: [],
-          attachments: [],
+    corpusThreads.forEach((event, index) => {
+      const channelName = event.title.match(/^#([^:]+):/)?.[1] ?? "all-hands";
+      if (!channels[channelName]) {
+        channels[channelName] = {
+          id: channelName,
+          name: channelName,
+          description: `Redwood ${channelName} activity from the enterprise corpus.`,
+          topic: "Customer signals, decisions, and implementation follow-through",
+          memberIds,
+          starredBy: memberIds.slice(0, 3),
         };
       }
-    }
-  });
 
-  Object.values(dms).forEach((dm, dmIndex) => {
-    for (let index = 0; index < 10; index += 1) {
-      const authorId = dm.participantIds[index % 2];
-      const id = `slack-msg-${counter}`;
-      counter += 1;
-      messages[id] = {
-        id,
-        surfaceId: dm.id,
-        surfaceType: "dm",
-        threadParentId: null,
-        authorId,
-        body:
-          index % 3 === 0
-            ? "Quick sync: I sent you the latest sample data notes."
-            : bodies[(index + dmIndex + 2) % bodies.length],
-        timestamp: now - (dmIndex * 16 + index) * 23 * 60 * 1000,
-        edited: false,
-        deleted: false,
-        readBy: index % 4 === 0 ? [authorId] : [...dm.participantIds],
-        reactions: index % 4 === 0 ? [{ emoji: "🙌", userIds: [dm.participantIds[1]] }] : [],
-        attachments: index % 7 === 0 ? [makeAttachment(`dm-${dm.id}-${index}`)] : [],
-      };
-    }
-  });
+      const parentId = event.sourceEntityId;
+      const threadMessages = corpusNormalizedRecords(event, "messages");
+      const visibleMessages =
+        threadMessages.length > 0
+          ? threadMessages
+          : [{ id: "turn-1", author: event.actorId, body: corpusText(event, 1800) }];
 
-  return { channels, dms, messages };
+      visibleMessages.forEach((threadMessage, messageIndex) => {
+        const messageId = messageIndex === 0 ? parentId : `${parentId}-reply-${messageIndex}`;
+        const author =
+          typeof threadMessage.author === "string" && threadMessage.author.trim()
+            ? threadMessage.author
+            : event.actorId;
+        const body =
+          typeof threadMessage.body === "string" && threadMessage.body.trim()
+            ? threadMessage.body
+            : corpusText(event, 1800);
+
+        messages[messageId] = {
+          id: messageId,
+          surfaceId: channelName,
+          surfaceType: "channel",
+          threadParentId: messageIndex === 0 ? null : parentId,
+          authorId: corpusUserIdFromName(author, event.actorId),
+          body,
+          timestamp: event.occurredAt + messageIndex * 7 * 60 * 1000,
+          edited: false,
+          deleted: false,
+          readBy: memberIds.filter((_, memberIndex) => memberIndex % 4 !== index % 4),
+          reactions:
+            messageIndex === 0 && index % 2 === 0
+              ? [{ emoji: index % 3 === 0 ? "✅" : "👀", userIds: memberIds.slice(0, 3) }]
+              : [],
+          attachments:
+            messageIndex === 0 && index % 5 === 0 ? [makeAttachment(event.sourceEntityId)] : [],
+        };
+      });
+    });
+
+    const dmUsers = memberIds.slice(0, 4);
+    const dms = Object.fromEntries(
+      dmUsers
+        .slice(1)
+        .map((userId) => [
+          `dm-${dmUsers[0]}-${userId}`,
+          { id: `dm-${dmUsers[0]}-${userId}`, participantIds: [dmUsers[0], userId] },
+        ]),
+    );
+
+    return { channels, dms, messages };
+  }
+
+  return { channels: {}, dms: {}, messages: {} };
 }
 
 export function userName(userId: string) {
@@ -264,6 +220,17 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useSlackStore = create<SlackState>((set, get) => ({
   ...initialSnapshot,
+
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("slack", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      channels: { ...state.channels, ...snapshot.channels },
+      dms: { ...state.dms, ...snapshot.dms },
+      messages: { ...state.messages, ...snapshot.messages },
+    }));
+    return events.length;
+  },
 
   createChannel: (name, description, topic, creatorId) => {
     const id = makeId("slack-channel");

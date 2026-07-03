@@ -2,6 +2,19 @@
 
 import { create } from "zustand";
 
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusLabels,
+  corpusNormalizedRecords,
+  corpusNormalizedString,
+  corpusNormalizedStrings,
+  corpusText,
+  corpusUserIdFromName,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
+
 export type GitHubComment = {
   id: string;
   authorId: string;
@@ -84,6 +97,7 @@ export type GitHubSnapshot = {
 };
 
 export type GitHubState = GitHubSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<void>;
   createIssue: (input: {
     repoId: string;
     authorId: string;
@@ -118,8 +132,6 @@ export type GitHubState = GitHubSnapshot & {
 export const githubTabs = ["code", "issues", "pulls", "notifications"] as const;
 export type GitHubTab = (typeof githubTabs)[number];
 
-const now = Date.now() - 30 * 60 * 1000;
-
 function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -135,181 +147,165 @@ function latestPullActivity(issue: Pick<GitHubPullRequest, "timestamp" | "commen
   return Math.max(issue.timestamp, ...issue.comments.map((item) => item.timestamp));
 }
 
-function buildInitialSnapshot(): GitHubSnapshot {
-  const repos: Record<string, GitHubRepo> = {
-    "corp-os": {
-      id: "corp-os",
-      owner: "corp",
-      name: "corp-os",
-      description: "Internal operating system connected apps and workflows.",
-      language: "TypeScript",
-      memberIds: ["riley", "maya", "ari"],
-      starredBy: ["riley", "maya"],
-      watchedBy: ["riley", "ari"],
-      defaultBranch: "main",
-    },
-    "design-system": {
-      id: "design-system",
-      owner: "corp",
-      name: "design-system",
-      description: "Shared primitives, tokens, and shadcn wrappers.",
-      language: "TypeScript",
-      memberIds: ["riley", "maya"],
-      starredBy: ["maya"],
-      watchedBy: ["maya"],
-      defaultBranch: "main",
-    },
-    "data-sync": {
-      id: "data-sync",
-      owner: "corp",
-      name: "data-sync",
-      description: "Local sync adapter for future local/cloud persistence work.",
-      language: "Go",
-      memberIds: ["riley", "ari"],
-      starredBy: ["ari"],
-      watchedBy: ["riley", "ari"],
-      defaultBranch: "trunk",
-    },
-  };
+function buildInitialSnapshot(corpusPulls = corpusEventsFor("github")): GitHubSnapshot {
+  if (corpusPulls.length > 0) {
+    const memberIds = activeCorpusUserIds();
+    const repos: Record<string, GitHubRepo> = {
+      redwood: {
+        id: "redwood",
+        owner: "redwood-inference",
+        name: "redwood",
+        description: "Redwood Inference product, runtime, console, and deployment platform.",
+        language: "TypeScript",
+        memberIds,
+        starredBy: memberIds.slice(0, 5),
+        watchedBy: memberIds.slice(0, 8),
+        defaultBranch: "main",
+      },
+      "runtime-platform": {
+        id: "runtime-platform",
+        owner: "redwood-inference",
+        name: "runtime-platform",
+        description: "Inference runtime, routing, scheduling, and observability services.",
+        language: "Go",
+        memberIds,
+        starredBy: memberIds.slice(2, 7),
+        watchedBy: memberIds.slice(0, 6),
+        defaultBranch: "main",
+      },
+    };
+    const issues: Record<string, GitHubIssue> = {};
+    const pulls: Record<string, GitHubPullRequest> = {};
+    const files: Record<string, GitHubFile> = {};
+    const notifications: Record<string, GitHubNotification> = {};
 
-  const issueTitles = [
-    "Account switch should scrub stale detail URLs",
-    "Add keyboard shortcuts to command surfaces",
-    "Attachment preview layout overlaps on mobile",
-    "Seed data needs cross-user coverage",
-    "Dark mode contrast for status labels",
-    "Search operators should compose with filters",
-  ];
-  const issues: Record<string, GitHubIssue> = {};
-  Object.values(repos).forEach((repo, repoIndex) => {
-    for (let index = 0; index < 8; index += 1) {
-      const id = `${repo.id}-issue-${index + 1}`;
-      const issueTimestamp = now - (index + 4) * 45 * 60 * 1000;
-      const issueComments = [
-        {
-          id: `${id}-c1`,
-          authorId: repo.memberIds[index % repo.memberIds.length],
-          body: "I can reproduce this on the current route.",
-          timestamp: issueTimestamp + 22 * 60 * 1000,
-        },
-        {
-          id: `${id}-c2`,
-          authorId: repo.memberIds[(index + 2) % repo.memberIds.length],
-          body: "Added a proposed acceptance checklist.",
-          timestamp: issueTimestamp + 54 * 60 * 1000,
-        },
-      ];
-      issues[id] = {
-        id,
+    Object.values(repos).forEach((repo) => {
+      files[`${repo.id}:README.md`] = {
         repoId: repo.id,
-        number: index + 1,
-        title: issueTitles[(index + repoIndex) % issueTitles.length],
-        body: "This issue tracks a product-level workflow gap found during QA.",
-        status: index % 4 === 0 ? "closed" : "open",
-        labels: index % 2 === 0 ? ["bug", "frontend"] : ["enhancement"],
-        assigneeIds: [repo.memberIds[index % repo.memberIds.length]],
-        authorId: repo.memberIds[(index + 1) % repo.memberIds.length],
-        comments: issueComments,
-        createdAt: issueTimestamp,
-        updatedAt: Math.max(issueTimestamp, ...issueComments.map((item) => item.timestamp)),
-        timestamp: issueTimestamp,
+        path: "README.md",
+        type: "file",
+        content: `${repo.name} source records are loaded from the Redwood enterprise corpus.`,
       };
-    }
-  });
+    });
 
-  const pulls: Record<string, GitHubPullRequest> = {};
-  Object.values(repos).forEach((repo, repoIndex) => {
-    for (let index = 0; index < 6; index += 1) {
-      const id = `${repo.id}-pr-${index + 1}`;
-      const pullTimestamp = now - (index + 3) * 70 * 60 * 1000;
-      const pullComments = [
-        {
-          id: `${id}-c1`,
-          authorId: repo.memberIds[(index + 1) % repo.memberIds.length],
-          body: "Left one note on the data shape.",
-          timestamp: pullTimestamp + 34 * 60 * 1000,
-        },
-      ];
-      pulls[id] = {
-        id,
-        repoId: repo.id,
-        number: index + 21,
-        title: [
-          "Build app shell",
-          "Tighten state selectors",
-          "Add privacy reset",
-          "Polish mobile panes",
-        ][(index + repoIndex) % 4],
-        body: "This pull request updates the app surface and includes workflow coverage.",
-        status: index === 4 ? "merged" : index === 5 ? "closed" : "open",
-        sourceBranch: `feature/app-${index + 1}`,
+    corpusPulls.forEach((event, index) => {
+      const repoId = event.title.toLowerCase().includes("runtime") ? "runtime-platform" : "redwood";
+      const repo = repos[repoId];
+      const number = Number(event.sourceEntityId.match(/\d+/)?.[0] ?? index + 1);
+      const normalizedLabels = corpusNormalizedStrings(event, "labels");
+      const labels =
+        normalizedLabels.length > 0 ? normalizedLabels : corpusLabels(event, ["implementation"]);
+      const issueId = `${repoId}-issue-${number}`;
+      const pullId = `${repoId}-pr-${number}`;
+      const normalizedReviewers = corpusNormalizedStrings(event, "reviewers")
+        .map((name) => corpusUserIdFromName(name, event.actorId))
+        .filter((id) => id !== event.actorId);
+      const reviewerIds =
+        normalizedReviewers.length > 0
+          ? normalizedReviewers.slice(0, 3)
+          : memberIds.filter((id) => id !== event.actorId).slice(index % 4, (index % 4) + 3);
+      const body = corpusNormalizedString(event, "description", corpusText(event, 2200));
+      const normalizedState = corpusNormalizedString(event, "state", "").toLowerCase();
+      const reviewComments = corpusNormalizedRecords(event, "reviewComments");
+      const comments =
+        reviewComments.length > 0
+          ? reviewComments.slice(0, 4).map((comment, commentIndex) => ({
+              id: `${issueId}-comment-${commentIndex + 1}`,
+              authorId: corpusUserIdFromName(
+                typeof comment.author === "string" ? comment.author : "",
+                reviewerIds[commentIndex % Math.max(1, reviewerIds.length)] ?? event.actorId,
+              ),
+              body: typeof comment.body === "string" ? comment.body : corpusText(event, 900),
+              timestamp: event.occurredAt + (commentIndex + 1) * 12 * 60 * 1000,
+            }))
+          : [
+              {
+                id: `${issueId}-comment-1`,
+                authorId: reviewerIds[0] ?? event.actorId,
+                body: "Keep the implementation linked to the upstream customer evidence.",
+                timestamp: event.occurredAt + 20 * 60 * 1000,
+              },
+            ];
+      issues[issueId] = {
+        id: issueId,
+        repoId,
+        number,
+        title: `Track evidence for ${event.title}`,
+        body,
+        status: stableNumber(event.id, 4) === 0 ? "closed" : "open",
+        labels,
+        assigneeIds: [event.actorId, reviewerIds[0]].filter(Boolean),
+        authorId: event.actorId,
+        comments,
+        createdAt: event.occurredAt - 4 * 24 * 60 * 60 * 1000,
+        updatedAt: event.occurredAt,
+        timestamp: event.occurredAt,
+      };
+      pulls[pullId] = {
+        id: pullId,
+        repoId,
+        number,
+        title: event.title,
+        body,
+        status:
+          normalizedState === "closed"
+            ? "closed"
+            : normalizedState === "merged" || stableNumber(event.id, 5) !== 0
+              ? "merged"
+              : "open",
+        sourceBranch: `feature/${event.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .slice(0, 42)}`,
         targetBranch: repo.defaultBranch,
-        authorId: repo.memberIds[index % repo.memberIds.length],
-        reviewerIds: repo.memberIds.filter(
-          (id) => id !== repo.memberIds[index % repo.memberIds.length],
-        ),
+        authorId: event.actorId,
+        reviewerIds,
         checks: [
-          { name: "lint", status: index % 3 === 0 ? "pending" : "passing" },
-          { name: "typecheck", status: index % 5 === 0 ? "failing" : "passing" },
-          { name: "preview", status: "passing" },
+          { name: "unit", status: "passing" },
+          { name: "integration", status: stableNumber(event.id, 6) === 0 ? "pending" : "passing" },
+          { name: "security", status: stableNumber(event.id, 9) === 0 ? "failing" : "passing" },
         ],
         changedFiles: [
           {
-            path: "src/app/core/App.tsx",
-            additions: 180 + index * 12,
-            deletions: 20 + index,
+            path: `src/${labels[0] ?? "runtime"}/${event.sourceEntityId}.ts`,
+            additions: 80 + stableNumber(event.id, 320),
+            deletions: stableNumber(event.id, 90),
           },
-          { path: "src/app/core/state.ts", additions: 90 + index * 8, deletions: 4 },
+          {
+            path: `docs/${labels[1] ?? "decision"}/${event.sourceEntityId}.md`,
+            additions: 20 + stableNumber(event.title, 160),
+            deletions: stableNumber(event.title, 40),
+          },
         ],
-        comments: pullComments,
-        createdAt: pullTimestamp,
-        updatedAt: Math.max(pullTimestamp, ...pullComments.map((item) => item.timestamp)),
-        timestamp: pullTimestamp,
+        comments: comments.map((comment) => ({
+          ...comment,
+          id: comment.id.replace(issueId, pullId),
+        })),
+        createdAt: event.occurredAt - 3 * 24 * 60 * 60 * 1000,
+        updatedAt: event.occurredAt,
+        timestamp: event.occurredAt,
       };
-    }
-  });
 
-  const files: Record<string, GitHubFile> = {};
-  Object.values(repos).forEach((repo) => {
-    [
-      [
-        "README.md",
-        "file",
-        `# ${repo.name}\n\n${repo.description}\n\nRun lint and typecheck before merging.`,
-      ],
-      ["src", "folder", ""],
-      ["src/app.tsx", "file", "export function App() {\n  return <main>App surface</main>;\n}\n"],
-      ["src/state.ts", "file", "export type State = {\n  ready: boolean;\n};\n"],
-      ["package.json", "file", '{\n  "scripts": {\n    "lint": "eslint"\n  }\n}\n'],
-    ].forEach(([path, type, content]) => {
-      files[`${repo.id}:${path}`] = {
-        repoId: repo.id,
-        path,
-        type: type as "file" | "folder",
-        content,
-      };
-    });
-  });
-
-  const notifications: Record<string, GitHubNotification> = {};
-  Object.values(issues)
-    .slice(0, 12)
-    .forEach((issue, index) => {
-      const userId = issue.assigneeIds[0];
-      notifications[`gh-notif-${index}`] = {
-        id: `gh-notif-${index}`,
-        repoId: issue.repoId,
-        userId,
-        title: issue.title,
-        reason: index % 2 === 0 ? "assigned" : "mentioned",
-        unread: index % 3 !== 0,
-        targetType: "issue",
-        targetId: issue.id,
-        timestamp: issue.timestamp + 20 * 60 * 1000,
-      };
+      reviewerIds.slice(0, 2).forEach((userId, notificationIndex) => {
+        const notificationId = `${pullId}-notification-${notificationIndex + 1}`;
+        notifications[notificationId] = {
+          id: notificationId,
+          repoId,
+          userId,
+          title: event.title,
+          reason: "review requested",
+          unread: notificationIndex === 0,
+          targetType: "pull",
+          targetId: pullId,
+          timestamp: event.occurredAt,
+        };
+      });
     });
 
-  return { repos, issues, pulls, files, notifications };
+    return { repos, issues, pulls, files, notifications };
+  }
+
+  return { repos: {}, issues: {}, pulls: {}, files: {}, notifications: {} };
 }
 
 export function canAccessRepo(repo: GitHubRepo | undefined, userId: string) {
@@ -345,6 +341,17 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useGitHubStore = create<GitHubState>((set) => ({
   ...initialSnapshot,
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("github", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      repos: { ...state.repos, ...snapshot.repos },
+      issues: { ...state.issues, ...snapshot.issues },
+      pulls: { ...state.pulls, ...snapshot.pulls },
+      files: { ...state.files, ...snapshot.files },
+      notifications: { ...state.notifications, ...snapshot.notifications },
+    }));
+  },
   createIssue: ({ repoId, authorId, title, body, labels, assigneeIds }) => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return "";

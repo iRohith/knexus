@@ -147,9 +147,7 @@ function AnswerBlock({ answer }: { answer: IntelligenceAnswer }) {
             <span className="font-medium">Answer</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">
-              {answer.source === "fixture" ? "Sample data" : "Cognee"}
-            </Badge>
+            <Badge variant="secondary">{answer.source === "corpus" ? "Corpus" : "Cognee"}</Badge>
             {answer.cognee?.datasetName && (
               <Badge variant="outline">{answer.cognee.datasetName}</Badge>
             )}

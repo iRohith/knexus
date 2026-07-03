@@ -3,6 +3,19 @@
 import { create } from "zustand";
 
 import { appUsers } from "@/lib/users";
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusLabels,
+  corpusNormalizedRecords,
+  corpusNormalizedString,
+  corpusNormalizedStrings,
+  corpusText,
+  corpusUserIdFromName,
+  dateInput,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
 
 export type JiraIssueType = "Story" | "Task" | "Bug" | "Epic";
 export type JiraPriority = "Highest" | "High" | "Medium" | "Low";
@@ -60,6 +73,7 @@ export type JiraSnapshot = {
 };
 
 export type JiraState = JiraSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<void>;
   createIssue: (input: {
     projectId: string;
     actorId: string;
@@ -99,8 +113,6 @@ export const jiraStatuses: JiraStatus[] = [
 export const jiraPriorities: JiraPriority[] = ["Highest", "High", "Medium", "Low"];
 export const jiraIssueTypes: JiraIssueType[] = ["Story", "Task", "Bug", "Epic"];
 
-const now = Date.now() - 45 * 60 * 1000;
-
 function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -116,113 +128,96 @@ function userName(id: string) {
   return appUsers.find((user) => user.id === id)?.name ?? id;
 }
 
-function buildInitialSnapshot(): JiraSnapshot {
-  const projects: Record<string, JiraProject> = {
-    cos: {
-      id: "cos",
-      key: "COS",
-      name: "Corp OS",
-      description: "Connected apps, account switching, and shared product shell.",
-      leadId: "riley",
-      memberIds: ["riley", "maya", "ari"],
-    },
-    growth: {
-      id: "growth",
-      key: "GRO",
-      name: "Growth Portal",
-      description: "Customer activation, lifecycle campaigns, and reporting.",
-      leadId: "maya",
-      memberIds: ["maya", "ari"],
-    },
-    platform: {
-      id: "platform",
-      key: "PLAT",
-      name: "Platform Reliability",
-      description: "Internal infra, auth, sync, and release confidence.",
-      leadId: "ari",
-      memberIds: ["riley", "ari"],
-    },
-  };
+function buildInitialSnapshot(corpusIssues = corpusEventsFor("jira")): JiraSnapshot {
+  if (corpusIssues.length > 0) {
+    const memberIds = activeCorpusUserIds();
+    const projects: Record<string, JiraProject> = {
+      support: {
+        id: "support",
+        key: "SUP",
+        name: "Customer Support",
+        description: "Customer-facing Redwood Inference support work.",
+        leadId: memberIds[0],
+        memberIds,
+      },
+      internal: {
+        id: "internal",
+        key: "INT",
+        name: "Internal Support",
+        description: "Internal platform, compliance, and operational support.",
+        leadId: memberIds[1] ?? memberIds[0],
+        memberIds,
+      },
+    };
+    const issues: Record<string, JiraIssue> = {};
 
-  const summaries = [
-    "Account switching should reset private detail views",
-    "Add dense keyboard-first command search",
-    "Board card labels wrap awkwardly on mobile",
-    "Create deterministic default records for all apps",
-    "Improve dark mode contrast for status chips",
-    "Backlog filters should compose with active sprint",
-    "Persist draft edits in the issue detail panel",
-    "Add due date warnings to release blockers",
-    "Comment composer needs optimistic feedback",
-    "Refine empty states for filtered board columns",
-    "Create deployment checklist for apps",
-    "Audit watcher notifications after status changes",
-  ];
-  const descriptions = [
-    "The current flow can leave users looking at stale state after a route transition. Tighten URL validation and clear incompatible params.",
-    "The surface should support fast triage without needing a mouse for every action.",
-    "The card layout needs stable dimensions so labels and metadata stay readable at narrow widths.",
-    "Seed data should feel real across users, projects, dates, comments, and status changes.",
-  ];
-  const issues: Record<string, JiraIssue> = {};
-  Object.values(projects).forEach((project, projectIndex) => {
-    for (let index = 0; index < 18; index += 1) {
-      const timestamp = now - (projectIndex * 20 + index + 1) * 54 * 60 * 1000;
-      const id = `${project.id}-issue-${index + 1}`;
-      const status = jiraStatuses[(index + projectIndex) % jiraStatuses.length];
-      const reporterId = project.memberIds[(index + projectIndex) % project.memberIds.length];
-      const assigneeId = project.memberIds[(index + 1) % project.memberIds.length];
-      const comments =
-        index % 3 === 0
-          ? [
-              {
-                id: `${id}-comment-1`,
-                authorId: assigneeId,
-                body: "I checked the repro and added the next implementation step.",
-                timestamp: timestamp + 28 * 60 * 1000,
-              },
-              {
-                id: `${id}-comment-2`,
-                authorId: reporterId,
-                body: "Thanks, this matches the expected product behavior.",
-                timestamp: timestamp + 72 * 60 * 1000,
-              },
-            ]
-          : [];
-      const updatedAt = Math.max(timestamp, ...comments.map((comment) => comment.timestamp));
-
+    corpusIssues.forEach((event, index) => {
+      const projectId = event.sourceEntityId.startsWith("INT") ? "internal" : "support";
+      const keyMatch = event.sourceEntityId.match(/([A-Z]+)-?(\d+)/);
+      const keyPrefix = keyMatch?.[1] ?? projects[projectId].key;
+      const number = Number(keyMatch?.[2] ?? index + 1);
+      const id = event.sourceEntityId;
+      const reporterId = event.actorId;
+      const assigneeId = memberIds[(index + 1) % memberIds.length] ?? reporterId;
+      const normalizedStatus = corpusNormalizedString(event, "status", "");
+      const normalizedPriority = corpusNormalizedString(event, "priority", "");
+      const status = jiraStatuses.includes(normalizedStatus as JiraStatus)
+        ? (normalizedStatus as JiraStatus)
+        : jiraStatuses[stableNumber(event.id, jiraStatuses.length)];
+      const priority = jiraPriorities.includes(normalizedPriority as JiraPriority)
+        ? (normalizedPriority as JiraPriority)
+        : jiraPriorities[stableNumber(event.id, jiraPriorities.length)];
+      const labels = corpusNormalizedStrings(event, "labels");
+      const comments = corpusNormalizedRecords(event, "comments");
       issues[id] = {
         id,
-        projectId: project.id,
-        key: `${project.key}-${index + 1}`,
-        number: index + 1,
-        type: jiraIssueTypes[(index + projectIndex) % jiraIssueTypes.length],
-        summary: summaries[(index + projectIndex) % summaries.length],
-        description: descriptions[index % descriptions.length],
+        projectId,
+        key: `${keyPrefix}-${number}`,
+        number,
+        type: ["Story", "Task", "Bug", "Epic"][stableNumber(event.id, 4)] as JiraIssueType,
+        summary: event.title,
+        description: corpusNormalizedString(event, "description", corpusText(event, 2200)),
         status,
-        priority: jiraPriorities[(index + projectIndex) % jiraPriorities.length],
+        priority,
         reporterId,
         assigneeId,
-        watcherIds: Array.from(new Set([reporterId, assigneeId])),
-        labels: [
-          ["frontend", "backend", "privacy", "design"][index % 4],
-          ["release", "triage", "quality"][index % 3],
-        ],
-        sprint: index % 4 === 0 ? "Backlog" : `Sprint ${12 + ((index + projectIndex) % 3)}`,
-        storyPoints: index % 5 === 0 ? null : [1, 2, 3, 5, 8][index % 5],
-        dueDate: `2026-07-${String(8 + ((index + projectIndex) % 18)).padStart(2, "0")}`,
-        createdAt: timestamp,
-        updatedAt,
-        comments,
+        watcherIds: Array.from(new Set([reporterId, assigneeId, ...memberIds.slice(0, 4)])),
+        labels: labels.length > 0 ? labels : corpusLabels(event, ["support"]),
+        sprint: `Redwood Support ${Math.max(1, stableNumber(event.id, 8) + 1)}`,
+        storyPoints: [1, 2, 3, 5, 8][stableNumber(event.id, 5)],
+        dueDate: dateInput(event.occurredAt + (5 + index) * 24 * 60 * 60 * 1000),
+        createdAt: event.occurredAt - (2 + index) * 24 * 60 * 60 * 1000,
+        updatedAt: event.occurredAt,
+        comments:
+          comments.length > 0
+            ? comments.slice(0, 5).map((comment, commentIndex) => ({
+                id: `${id}-comment-${commentIndex + 1}`,
+                authorId: corpusUserIdFromName(
+                  typeof comment.author === "string" ? comment.author : "",
+                  assigneeId,
+                ),
+                body: typeof comment.body === "string" ? comment.body : corpusText(event, 800),
+                timestamp: event.occurredAt + (commentIndex + 1) * 15 * 60 * 1000,
+              }))
+            : [
+                {
+                  id: `${id}-comment-1`,
+                  authorId: assigneeId,
+                  body: "Mapped to related Redwood customer evidence for follow-up.",
+                  timestamp: event.occurredAt + 15 * 60 * 1000,
+                },
+              ],
         activity: [
-          activity(reporterId, "created the issue", timestamp),
-          activity(assigneeId, `moved the issue to ${status}`, timestamp + 14 * 60 * 1000),
+          activity(reporterId, `Created ${event.title}`, event.occurredAt - 20 * 60 * 1000),
+          activity(assigneeId, `Updated status to ${status}`, event.occurredAt),
         ],
       };
-    }
-  });
+    });
 
-  return { projects, issues };
+    return { projects, issues };
+  }
+
+  return { projects: {}, issues: {} };
 }
 
 export function canAccessProject(project: JiraProject | undefined, userId: string) {
@@ -276,6 +271,14 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useJiraStore = create<JiraState>((set) => ({
   ...initialSnapshot,
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("jira", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      projects: { ...state.projects, ...snapshot.projects },
+      issues: { ...state.issues, ...snapshot.issues },
+    }));
+  },
   createIssue: (input) => {
     const summary = input.summary.trim();
     if (!summary) return "";

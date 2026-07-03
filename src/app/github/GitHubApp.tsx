@@ -73,6 +73,7 @@ export function GitHubApp({
   const pulls = useGitHubStore((state) => state.pulls);
   const files = useGitHubStore((state) => state.files);
   const notifications = useGitHubStore((state) => state.notifications);
+  const loadCorpusPage = useGitHubStore((state) => state.loadCorpusPage);
   const createIssue = useGitHubStore((state) => state.createIssue);
   const toggleStar = useGitHubStore((state) => state.toggleStar);
   const toggleWatch = useGitHubStore((state) => state.toggleWatch);
@@ -89,6 +90,10 @@ export function GitHubApp({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commentDraftState, setCommentDraftState] = useState({ key: "", value: "" });
   const previousUserId = useRef(activeUser.id);
+
+  useEffect(() => {
+    void loadCorpusPage(1);
+  }, [loadCorpusPage]);
 
   const accessibleRepos = useMemo(
     () => Object.values(repos).filter((repo) => canAccessRepo(repo, activeUser.id)),

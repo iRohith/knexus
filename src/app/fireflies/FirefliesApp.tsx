@@ -68,6 +68,7 @@ export function FirefliesApp() {
   const searchParams = useSearchParams();
   const activeUser = useActiveUser();
   const meetings = useFirefliesStore((state) => state.meetings);
+  const loadCorpusPage = useFirefliesStore((state) => state.loadCorpusPage);
   const importMeeting = useFirefliesStore((state) => state.importMeeting);
   const updateMeetingText = useFirefliesStore((state) => state.updateMeetingText);
   const addActionItem = useFirefliesStore((state) => state.addActionItem);
@@ -78,6 +79,10 @@ export function FirefliesApp() {
   const [importOpen, setImportOpen] = useState(false);
   const [commentState, setCommentState] = useState({ key: "", value: "" });
   const previousUserId = useRef(activeUser.id);
+
+  useEffect(() => {
+    void loadCorpusPage(1);
+  }, [loadCorpusPage]);
 
   const view = normalizeView(searchParams.get("view"));
   const meetingId = searchParams.get("meeting");

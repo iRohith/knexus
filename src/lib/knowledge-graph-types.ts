@@ -46,7 +46,7 @@ export type CogneeQueryPayload = {
   answer: string;
   responseTimeMs: number | null;
   timestamp: string;
-  source: "cognee-cloud" | "cognee" | "fixture";
+  source: "cognee-cloud" | "cognee" | "corpus";
   datasetName?: string;
   raw?: {
     remember?: JsonValue;
@@ -119,7 +119,7 @@ export type KnowledgeGraph = {
   queryId?: string;
   answerId?: string;
   generatedAt: number;
-  source: "fixture" | "cognee";
+  source: "corpus" | "cognee";
 };
 
 // ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ export type IntelligenceAnswer = {
   question: string;
   answer: string;
   createdAt: number;
-  source: "fixture" | "cognee";
+  source: "corpus" | "cognee";
   responseTimeMs: number;
   citations: AnswerCitation[];
   cognee?: {

@@ -2,6 +2,15 @@
 
 import { create } from "zustand";
 
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusLabels,
+  corpusText,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
+
 export type DriveView = "my-drive" | "shared" | "starred" | "recent" | "trash";
 export type DriveKind = "folder" | "doc" | "sheet" | "slide" | "pdf" | "image";
 
@@ -24,6 +33,7 @@ export type DriveSnapshot = {
 };
 
 export type DriveState = DriveSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<void>;
   createFolder: (actorId: string, parentId: string | null, name: string) => string;
   uploadFile: (input: {
     actorId: string;
@@ -44,53 +54,75 @@ export type DriveState = DriveSnapshot & {
 export const driveViews: DriveView[] = ["my-drive", "shared", "starred", "recent", "trash"];
 export const driveKinds: DriveKind[] = ["doc", "sheet", "slide", "pdf", "image"];
 
-const now = Date.now() - 20 * 60 * 1000;
-
 function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto)
     return `${prefix}-${crypto.randomUUID()}`;
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function buildInitialSnapshot(): DriveSnapshot {
-  const items: Record<string, DriveItem> = {};
-  const owners = ["riley", "maya", "ari"];
-  const folders = ["Product", "Sales", "Engineering", "Research"];
-  folders.forEach((name, index) => {
-    const ownerId = owners[index % owners.length];
-    const folderId = `drive-folder-${index + 1}`;
-    items[folderId] = {
-      id: folderId,
-      name,
-      kind: "folder",
-      ownerId,
-      parentId: null,
-      sharedWith: owners.filter((id) => id !== ownerId).slice(0, 1),
-      starredBy: index % 2 === 0 ? [ownerId] : [],
-      trashed: false,
-      size: "-",
-      content: `${name} folder`,
-      updatedAt: now - index * 2 * 60 * 60 * 1000,
-    };
-    for (let fileIndex = 0; fileIndex < 8; fileIndex += 1) {
-      const kind = driveKinds[(fileIndex + index) % driveKinds.length];
-      const id = `${folderId}-file-${fileIndex + 1}`;
-      items[id] = {
-        id,
-        name: `${name} ${["Roadmap", "Budget", "Brief", "Notes", "Mockup"][fileIndex % 5]}.${kind}`,
+function buildInitialSnapshot(corpusDocs = corpusEventsFor("google-drive")): DriveSnapshot {
+  if (corpusDocs.length > 0) {
+    const items: Record<string, DriveItem> = {};
+    const memberIds = activeCorpusUserIds();
+    const folders = ["customer-success", "product", "security", "runtime"];
+
+    folders.forEach((folder, index) => {
+      const ownerId = memberIds[index % memberIds.length];
+      items[folder] = {
+        id: folder,
+        name: folder
+          .split("-")
+          .map((part) => part[0].toUpperCase() + part.slice(1))
+          .join(" "),
+        kind: "folder",
+        ownerId,
+        parentId: null,
+        sharedWith: memberIds.filter((id) => id !== ownerId).slice(0, 8),
+        starredBy: memberIds.slice(index, index + 2),
+        trashed: false,
+        size: "-",
+        content: "Redwood Inference corpus folder.",
+        updatedAt: Date.now() - index * 24 * 60 * 60 * 1000,
+      };
+    });
+
+    corpusDocs.forEach((event, index) => {
+      const labels = corpusLabels(event);
+      const content = corpusText(event, 2600);
+      const folderId =
+        folders.find(
+          (folder) =>
+            labels.includes(folder) ||
+            event.title.toLowerCase().includes(folder) ||
+            content.toLowerCase().includes(folder),
+        ) ?? folders[index % folders.length];
+      const ownerId = event.actorId;
+      const kind: DriveKind =
+        event.title.toLowerCase().includes("snapshot") || content.toLowerCase().includes("csv")
+          ? "sheet"
+          : content.toLowerCase().includes("slide")
+            ? "slide"
+            : "doc";
+
+      items[event.sourceEntityId] = {
+        id: event.sourceEntityId,
+        name: event.title,
         kind,
         ownerId,
         parentId: folderId,
-        sharedWith: fileIndex % 3 === 0 ? owners.filter((userId) => userId !== ownerId) : [],
-        starredBy: fileIndex % 4 === 0 ? [ownerId, ...items[folderId].sharedWith] : [],
-        trashed: fileIndex === 7 && index % 2 === 0,
-        size: `${120 + fileIndex * 43} KB`,
-        content: `Preview for ${name} ${kind}. Includes planning notes, ownership, dates, and project context.`,
-        updatedAt: now - (index * 8 + fileIndex + 1) * 47 * 60 * 1000,
+        sharedWith: memberIds.filter((id) => id !== ownerId).slice(0, 7),
+        starredBy: stableNumber(event.id, 3) === 0 ? [ownerId, memberIds[0]].filter(Boolean) : [],
+        trashed: false,
+        size: `${Math.max(90, Math.round(corpusText(event).length / 9))} KB`,
+        content,
+        updatedAt: event.occurredAt,
       };
-    }
-  });
-  return { items };
+    });
+
+    return { items };
+  }
+
+  return { items: {} };
 }
 
 export function canAccessItem(item: DriveItem | undefined, userId: string) {
@@ -108,6 +140,13 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useDriveStore = create<DriveState>((set) => ({
   ...initialSnapshot,
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("google-drive", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      items: { ...state.items, ...snapshot.items },
+    }));
+  },
   createFolder: (actorId, parentId, name) => {
     const trimmed = name.trim();
     if (!trimmed) return "";

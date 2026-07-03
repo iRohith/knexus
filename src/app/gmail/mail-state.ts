@@ -3,6 +3,18 @@ import type { LucideIcon } from "lucide-react";
 import { AlertOctagon, Archive, Clock, Inbox, Pencil, Send, Star, Tag, Trash2 } from "lucide-react";
 
 import { appUsers, defaultUser, userToRecipient } from "@/lib/users";
+import {
+  activeCorpusUserIds,
+  actorEmail,
+  actorName,
+  corpusEventsFor,
+  corpusLabels,
+  corpusNormalizedRecords,
+  corpusNormalizedStrings,
+  corpusText,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
 
 export type Folder =
   "inbox" | "sent" | "drafts" | "spam" | "trash" | "starred" | "snoozed" | "important" | "all";
@@ -126,41 +138,44 @@ export const folders: MailFolderItem[] = [
   { key: "all", label: "All Mail", icon: Archive },
 ];
 
-const externalContacts: Recipient[] = [
-  { name: "Maya Chen", email: "maya.chen@northstar.example" },
-  { name: "Ari Patel", email: "ari@linear.example" },
-  { name: "GitHub", email: "notifications@github.example" },
-  { name: "Google Workspace", email: "workspace-noreply@example.com" },
-  { name: "HubSpot", email: "updates@hubspot.example" },
-  { name: "Nora Williams", email: "nora@corp.example" },
-  { name: "Jira", email: "jira@atlassian.example" },
-  { name: "Slack", email: "feedback@slack.example" },
-  { name: "Fireflies", email: "notes@fireflies.example" },
-  { name: "Confluence", email: "updates@confluence.example" },
-];
+const contacts: Recipient[] = appUsers.map(userToRecipient);
 
-const contacts: Recipient[] = [...appUsers.map(userToRecipient), ...externalContacts];
+function externalRecipientFromCorpus(body: string, fallbackSeed: string): Recipient {
+  const matches = Array.from(body.matchAll(/([^<>\n;,]+?)\s*<([^<>\s]+@[^<>\s]+)>/g));
+  const external = matches.find((match) => !match[2].includes("redwood"));
+  if (external) {
+    return {
+      name: external[1].trim().replace(/^From:\s*/i, "") || external[2].split("@")[0],
+      email: external[2].trim(),
+    };
+  }
+  const domain = fallbackSeed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return {
+    name: "Customer Contact",
+    email: `contact@${domain || "customer"}.example`,
+  };
+}
 
-const subjects = [
-  "Q3 planning notes and follow ups",
-  "Invoice ready for review",
-  "Security alert for connected app",
-  "Weekly product digest",
-  "Contract redlines from legal",
-  "Design review agenda",
-  "Build failed on main",
-  "Meeting transcript is ready",
-  "Customer expansion opportunity",
-  "Shared drive access request",
-];
+function firstRecipientFromValue(value: unknown, fallback: Recipient): Recipient {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  return parseRecipients(value)[0] ?? fallback;
+}
 
-const snippets = [
-  "Here is the latest context before the working session starts.",
-  "Please take a look when you have a window today.",
-  "The team left comments and two open questions for you.",
-  "This includes the revised scope, dates, and owner list.",
-  "No action is needed unless the details look off.",
-];
+function recipientsFromValue(value: unknown): Recipient[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => (typeof item === "string" ? parseRecipients(item) : []));
+  }
+  return typeof value === "string" ? parseRecipients(value) : [];
+}
+
+function timestampFromEmailDate(value: unknown, fallback: number) {
+  if (typeof value !== "string" || !value.trim()) return fallback;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : fallback;
+}
 
 export function parseRecipients(value: string): Recipient[] {
   return value
@@ -172,6 +187,19 @@ export function parseRecipients(value: string): Recipient[] {
       if (match) return { name: match[1].trim(), email: match[2].trim() };
       return { name: entry.split("@")[0] || entry, email: entry };
     });
+}
+
+function mailboxKey(email: string) {
+  return (
+    email
+      .split("@")[0]
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") ?? ""
+  );
+}
+
+function sameMailbox(left: string, right: string) {
+  return left === right || (mailboxKey(left) !== "" && mailboxKey(left) === mailboxKey(right));
 }
 
 export function formatRecipients(recipients: Recipient[]) {
@@ -312,111 +340,129 @@ function makeConversationFromMessages({
   };
 }
 
-function buildInitialSnapshot(): MailSnapshot {
+function buildInitialSnapshot(corpusThreads = corpusEventsFor("gmail")): MailSnapshot {
   const conversations: Record<string, Conversation> = {};
   const messages: Record<string, Message> = {};
   const drafts: Record<string, Draft> = {};
-  const now = Date.UTC(2026, 6, 1, 12, 0);
+  if (corpusThreads.length > 0) {
+    const activeUserIds = activeCorpusUserIds();
+    const activeRecipients = activeUserIds
+      .flatMap((id) => {
+        const user = appUsers.find((item) => item.id === id);
+        return user ? [user] : [];
+      })
+      .map(userToRecipient);
 
-  for (let index = 0; index < 286; index += 1) {
-    const id = `conv-${index + 1}`;
-    const mailboxUser = userToRecipient(appUsers[index % appUsers.length]);
-    const otherUser = userToRecipient(appUsers[(index + 1) % appUsers.length]);
-    const externalSender = externalContacts[index % externalContacts.length];
-    const sender = index % 4 === 0 ? otherUser : externalSender;
-    const subject = subjects[index % subjects.length];
-    const label = userLabels[index % userLabels.length];
-    const baseTime = now - index * 60 * 60 * 1000;
-    const count = index % 7 === 0 ? 3 : index % 11 === 0 ? 2 : 1;
-    const systemLabels: SystemLabel[] =
-      index % 31 === 0 ? ["spam"] : index % 29 === 0 ? ["trash"] : ["inbox"];
-    const threadMessages = Array.from({ length: count }, (_, messageIndex) => {
-      const sentByMailboxUser = messageIndex % 2 === 1;
-      const message = makeMessage({
-        id: `${id}-msg-${messageIndex + 1}`,
-        conversationId: id,
-        from: sentByMailboxUser ? mailboxUser : sender,
-        to: sentByMailboxUser ? [sender] : [mailboxUser],
-        cc:
-          messageIndex === 0 && index % 5 === 0
-            ? [userToRecipient(appUsers[(index + 2) % appUsers.length])]
-            : [],
-        subject,
-        body: sentByMailboxUser
-          ? `Thanks for sending this over.\n\nI reviewed the ${label.toLowerCase()} details and added a few notes. Please confirm the owner list before the wider share.`
-          : `Hi,\n\n${snippets[(index + messageIndex) % snippets.length]} The notes cover decisions, owners, risks, and the next checkpoint.\n\nThanks,\n${sender.name}`,
-        timestamp: baseTime + messageIndex * 18 * 60 * 1000,
-        attachments:
-          messageIndex === 0 && index % 6 === 0
-            ? [makeSampleAttachment(label.toLowerCase(), index % 3)]
-            : [],
-        read: index % 4 !== 0 || sentByMailboxUser,
-        sentByMe: sentByMailboxUser,
+    corpusThreads.forEach((event, index) => {
+      const id = event.sourceEntityId;
+      const actor = { name: actorName(event), email: actorEmail(event) };
+      const supportingRecipients =
+        activeRecipients.length > 0
+          ? activeRecipients.filter((recipient) => recipient.email !== actor.email).slice(0, 4)
+          : contacts.slice(0, 3);
+      const customerSender = externalRecipientFromCorpus(event.body, event.title);
+      const isSent = index % 5 === 0;
+      const normalizedMessages = corpusNormalizedRecords(event, "messages");
+      const eventAttachments = corpusNormalizedStrings(event, "attachments");
+      const threadMessages = (
+        normalizedMessages.length > 0
+          ? normalizedMessages
+          : [
+              {
+                id: "email-1",
+                from: isSent ? `${actor.name} <${actor.email}>` : customerSender.email,
+                to: isSent ? [customerSender.email] : [actor.email],
+                cc: supportingRecipients.slice(0, 2).map((recipient) => recipient.email),
+                body: corpusText(event, 2200),
+                date: "",
+              },
+            ]
+      ).map((emailMessage, messageIndex) => {
+        const from = firstRecipientFromValue(
+          emailMessage.from,
+          messageIndex === 0 && !isSent ? customerSender : actor,
+        );
+        const to = recipientsFromValue(emailMessage.to);
+        const cc = recipientsFromValue(emailMessage.cc);
+        const bcc = recipientsFromValue(emailMessage.bcc);
+        const attachmentNames = [
+          ...(Array.isArray(emailMessage.attachments)
+            ? emailMessage.attachments.filter(
+                (attachment): attachment is string => typeof attachment === "string",
+              )
+            : []),
+          ...eventAttachments,
+        ];
+        const message = makeMessage({
+          id: `${id}-msg-${messageIndex + 1}`,
+          conversationId: id,
+          from,
+          to: to.length > 0 ? to : isSent ? [customerSender] : [actor],
+          cc,
+          bcc,
+          subject: event.title,
+          body:
+            typeof emailMessage.body === "string" && emailMessage.body.trim()
+              ? emailMessage.body
+              : corpusText(event, 2200),
+          timestamp: timestampFromEmailDate(
+            emailMessage.date,
+            event.occurredAt + messageIndex * 34 * 60 * 1000,
+          ),
+          attachments:
+            attachmentNames.length > 0 || stableNumber(`${event.id}-${messageIndex}`, 9) === 0
+              ? [makeSampleAttachment(id, messageIndex)]
+              : [],
+          read: stableNumber(`${event.id}-${messageIndex}`, 3) !== 0,
+          sentByMe: sameMailbox(from.email, CURRENT_USER.email) || (isSent && messageIndex === 0),
+        });
+        messages[message.id] = message;
+        return message;
       });
-      messages[message.id] = message;
-      return message;
+
+      const systemLabels: SystemLabel[] =
+        stableNumber(event.id, 31) === 0
+          ? ["spam"]
+          : stableNumber(event.id, 29) === 0
+            ? ["trash"]
+            : isSent
+              ? ["sent"]
+              : ["inbox"];
+      conversations[id] = makeConversationFromMessages({
+        id,
+        subject: event.title,
+        messages: threadMessages,
+        systemLabels,
+        userLabels: corpusLabels(event, ["Customers"]).slice(0, 4),
+        starred: stableNumber(event.id, 5) === 0,
+        important: stableNumber(event.id, 3) === 0,
+        snoozedUntil:
+          stableNumber(event.id, 13) === 0
+            ? new Date(event.occurredAt + 3 * 24 * 60 * 60 * 1000).toISOString()
+            : null,
+      });
     });
 
-    conversations[id] = makeConversationFromMessages({
-      id,
-      subject,
-      messages: threadMessages,
-      systemLabels,
-      userLabels: index % 3 === 0 ? [label] : index % 5 === 0 ? [label, "Important"] : [],
-      starred: index % 9 === 0,
-      important: index % 5 === 0,
-      snoozedUntil: index % 13 === 0 ? new Date(now + 2 * 24 * 60 * 60 * 1000).toISOString() : null,
-    });
-  }
+    const draftSource = Object.values(conversations).find((conversation) =>
+      conversation.systemLabels.includes("inbox"),
+    );
+    if (draftSource) {
+      drafts["draft-private-upgrade-followup"] = {
+        id: "draft-private-upgrade-followup",
+        conversationId: draftSource.id,
+        mode: "reply",
+        from: userToRecipient(defaultUser),
+        to: contacts[0] ? [contacts[0]] : [],
+        cc: activeRecipients.slice(0, 2),
+        bcc: [],
+        subject: `Re: ${draftSource.subject}`,
+        body: "Drafting the follow-up with the latest evidence and owner list.",
+        attachments: [makeSampleAttachment("redwood-draft", 0)],
+        minimized: false,
+      };
+    }
 
-  for (let index = 0; index < 64; index += 1) {
-    const id = `sent-conv-${index + 1}`;
-    const sender = userToRecipient(appUsers[index % appUsers.length]);
-    const recipient =
-      index % 5 === 0
-        ? userToRecipient(appUsers[(index + 1) % appUsers.length])
-        : externalContacts[index % externalContacts.length];
-    const subject = subjects[(index + 3) % subjects.length];
-    const message = makeMessage({
-      id: `${id}-msg-1`,
-      conversationId: id,
-      from: sender,
-      to: [recipient],
-      subject,
-      body: `Sharing the promised follow up with context, action items, and owners.\n\nBest,\n${sender.name}`,
-      timestamp: now - (index + 320) * 45 * 60 * 1000,
-      attachments: index % 8 === 0 ? [makeSampleAttachment("proposal", index % 3)] : [],
-      read: true,
-      sentByMe: true,
-    });
-    messages[message.id] = message;
-    conversations[id] = makeConversationFromMessages({
-      id,
-      subject,
-      messages: [message],
-      systemLabels: ["sent"],
-      userLabels: index % 4 === 0 ? ["Follow up"] : [],
-      starred: index % 11 === 0,
-      important: index % 6 === 0,
-    });
-  }
-
-  const draftConversation = conversations["conv-2"];
-  if (draftConversation) {
-    const draftId = "draft-1";
-    drafts[draftId] = {
-      id: draftId,
-      conversationId: draftConversation.id,
-      mode: "reply",
-      from: CURRENT_USER,
-      to: [contacts[1]],
-      cc: [],
-      bcc: [],
-      subject: `Re: ${draftConversation.subject}`,
-      body: "Draft reply with the latest numbers attached.",
-      attachments: [makeSampleAttachment("draft", 0)],
-      minimized: false,
-    };
+    return { conversations, messages, drafts };
   }
 
   return { conversations, messages, drafts };
@@ -523,6 +569,7 @@ function makeConversationDraftSubject(mode: DraftMode, subject: string) {
 export type GmailMailState = MailSnapshot & {
   labels: string[];
   undoState: UndoState;
+  loadCorpusPage: (page?: number) => Promise<void>;
   createDraft: (input?: Partial<Draft>) => string;
   updateDraft: (id: string, patch: Partial<Omit<Draft, "id">>) => void;
   discardDraft: (id: string) => void;
@@ -553,6 +600,16 @@ export const useGmailMailStore = create<GmailMailState>((set, get) => ({
   ...initialSnapshot,
   labels: [...userLabels, "Follow up", "Important"],
   undoState: null,
+
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("gmail", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      conversations: { ...state.conversations, ...snapshot.conversations },
+      messages: { ...state.messages, ...snapshot.messages },
+      drafts: { ...state.drafts, ...snapshot.drafts },
+    }));
+  },
 
   createDraft: (input) => {
     const id = input?.id ?? `draft-${Date.now()}`;

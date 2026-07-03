@@ -2,6 +2,20 @@
 
 import { create } from "zustand";
 
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusLabels,
+  corpusNormalizedRecords,
+  corpusNormalizedString,
+  corpusNormalizedStrings,
+  corpusText,
+  corpusUserIdFromName,
+  dateTimeText,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
+
 export type FirefliesView = "all" | "mine" | "shared" | "actions";
 
 export type TranscriptLine = {
@@ -48,6 +62,7 @@ export type FirefliesSnapshot = {
 };
 
 export type FirefliesState = FirefliesSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<void>;
   importMeeting: (input: {
     actorId: string;
     title: string;
@@ -69,8 +84,6 @@ export type FirefliesState = FirefliesSnapshot & {
 
 export const firefliesViews: FirefliesView[] = ["all", "mine", "shared", "actions"];
 
-const now = Date.now() - 50 * 60 * 1000;
-
 function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto)
     return `${prefix}-${crypto.randomUUID()}`;
@@ -81,75 +94,95 @@ function comment(authorId: string, body: string, timestamp: number): MeetingComm
   return { id: makeId("ff-comment"), authorId, body, timestamp };
 }
 
-function buildInitialSnapshot(): FirefliesSnapshot {
-  const meetings: Record<string, Meeting> = {};
-  const titles = [
-    "App planning review",
-    "Customer expansion sync",
-    "Design critique",
-    "Engineering standup",
-    "Launch readiness",
-    "Pipeline inspection",
-    "Research synthesis",
-    "Incident follow-up",
-  ];
-  const users = ["riley", "maya", "ari"];
-  for (let index = 0; index < 24; index += 1) {
-    const ownerId = users[index % users.length];
-    const attendeeIds = users.filter(
-      (_, userIndex) => (userIndex + index) % 2 === 0 || users[userIndex] === ownerId,
-    );
-    const timestamp = now - (index + 1) * 3 * 60 * 60 * 1000;
-    const id = `meeting-${index + 1}`;
-    meetings[id] = {
-      id,
-      title: titles[index % titles.length],
-      ownerId,
-      attendeeIds,
-      sharedWith: index % 3 === 0 ? users.filter((userId) => !attendeeIds.includes(userId)) : [],
-      date: `2026-07-${String(1 + (index % 20)).padStart(2, "0")} ${String(9 + (index % 7)).padStart(2, "0")}:00`,
-      duration: `${24 + (index % 6) * 8}m`,
-      source: ["Zoom", "Meet", "Teams"][index % 3] as Meeting["source"],
-      summary:
-        "The meeting covered current progress, blockers, ownership, and concrete follow-ups. Decisions were captured with enough context for async review.",
-      topics: [
-        ["apps", "quality"],
-        ["sales", "customer"],
-        ["design", "accessibility"],
-        ["infra", "release"],
-      ][index % 4],
-      sentiment: ["Positive", "Neutral", "Mixed"][index % 3] as Meeting["sentiment"],
-      transcript: Array.from({ length: 8 }, (_, lineIndex) => ({
-        id: `${id}-line-${lineIndex + 1}`,
-        speakerId: attendeeIds[lineIndex % attendeeIds.length],
-        timestamp: `00:${String(lineIndex * 3 + 1).padStart(2, "0")}`,
-        text: [
-          "Let us anchor this on the user-visible workflow first.",
-          "The default records should include enough edge cases for validation.",
-          "I can take the follow-up and update the acceptance notes.",
-          "The privacy reset behavior needs to be part of the definition of done.",
-        ][lineIndex % 4],
-      })),
-      actionItems: Array.from({ length: 3 }, (_, actionIndex) => ({
-        id: `${id}-action-${actionIndex + 1}`,
-        ownerId: attendeeIds[actionIndex % attendeeIds.length],
-        text: ["Send recap", "Update implementation notes", "Verify mobile layout"][actionIndex],
-        completed: actionIndex === 2 && index % 2 === 0,
-      })),
-      comments:
-        index % 4 === 0
-          ? [
-              comment(
-                ownerId,
-                "Shared the recap with the project thread.",
-                timestamp + 20 * 60 * 1000,
-              ),
-            ]
-          : [],
-      updatedAt: timestamp,
-    };
+function buildInitialSnapshot(corpusMeetings = corpusEventsFor("fireflies")): FirefliesSnapshot {
+  if (corpusMeetings.length > 0) {
+    const meetings: Record<string, Meeting> = {};
+    const memberIds = activeCorpusUserIds();
+
+    corpusMeetings.forEach((event, index) => {
+      const normalizedAttendees = [
+        ...corpusNormalizedStrings(event, "redwoodAttendees"),
+        ...corpusNormalizedStrings(event, "customerAttendees"),
+      ].map((name) => corpusUserIdFromName(name, event.actorId));
+      const attendees = Array.from(
+        new Set([
+          event.actorId,
+          ...normalizedAttendees,
+          ...memberIds.slice(index % 5, (index % 5) + 4),
+        ]),
+      );
+      const summary = corpusNormalizedString(event, "summary", corpusText(event, 2200));
+      const transcript = corpusNormalizedRecords(event, "transcript");
+      const actionItems = corpusNormalizedStrings(event, "actionItems");
+      meetings[event.sourceEntityId] = {
+        id: event.sourceEntityId,
+        title: event.title,
+        ownerId: event.actorId,
+        attendeeIds: attendees,
+        sharedWith: memberIds.filter((id) => !attendees.includes(id)).slice(0, 5),
+        date: dateTimeText(event.occurredAt),
+        duration: `${35 + stableNumber(event.id, 35)}m`,
+        source: ["Zoom", "Meet", "Teams"][index % 3] as Meeting["source"],
+        summary,
+        topics: corpusLabels(event, ["customer", "meeting"]).slice(0, 5),
+        sentiment: ["Positive", "Neutral", "Mixed"][
+          stableNumber(event.id, 3)
+        ] as Meeting["sentiment"],
+        transcript:
+          transcript.length > 0
+            ? transcript.slice(0, 12).map((line, lineIndex) => ({
+                id: `${event.sourceEntityId}-line-${lineIndex + 1}`,
+                speakerId: corpusUserIdFromName(
+                  typeof line.author === "string" ? line.author : "",
+                  attendees[lineIndex % attendees.length],
+                ),
+                timestamp: `00:${String(lineIndex * 3 + 1).padStart(2, "0")}`,
+                text: typeof line.body === "string" ? line.body : summary,
+              }))
+            : summary
+                .split(/(?<=[.!?])\s+/)
+                .slice(0, 8)
+                .map((text, lineIndex) => ({
+                  id: `${event.sourceEntityId}-line-${lineIndex + 1}`,
+                  speakerId: attendees[lineIndex % attendees.length],
+                  timestamp: `00:${String(lineIndex * 3 + 1).padStart(2, "0")}`,
+                  text,
+                })),
+        actionItems:
+          actionItems.length > 0
+            ? actionItems.slice(0, 6).map((text, actionIndex) => ({
+                id: `${event.sourceEntityId}-action-${actionIndex + 1}`,
+                ownerId: attendees[(actionIndex + 1) % attendees.length] ?? event.actorId,
+                text,
+                completed: stableNumber(`${event.id}-${actionIndex}`, 4) === 0,
+              }))
+            : [
+                {
+                  id: `${event.sourceEntityId}-action-1`,
+                  ownerId: attendees[1] ?? event.actorId,
+                  text: "Review customer evidence and attach follow-up decisions.",
+                  completed: stableNumber(event.id, 4) === 0,
+                },
+              ],
+        comments:
+          index % 2 === 0
+            ? [
+                {
+                  id: `${event.sourceEntityId}-comment-1`,
+                  authorId: attendees[0],
+                  body: "Added this meeting to the customer evidence trail.",
+                  timestamp: event.occurredAt + 30 * 60 * 1000,
+                },
+              ]
+            : [],
+        updatedAt: event.occurredAt,
+      };
+    });
+
+    return { meetings };
   }
-  return { meetings };
+
+  return { meetings: {} };
 }
 
 export function canAccessMeeting(meeting: Meeting | undefined, userId: string) {
@@ -172,6 +205,13 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useFirefliesStore = create<FirefliesState>((set) => ({
   ...initialSnapshot,
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("fireflies", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      meetings: { ...state.meetings, ...snapshot.meetings },
+    }));
+  },
   importMeeting: (input) => {
     const title = input.title.trim();
     if (!title) return "";

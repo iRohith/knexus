@@ -102,6 +102,7 @@ export function JiraApp() {
   const activeUser = useActiveUser();
   const projects = useJiraStore((state) => state.projects);
   const issues = useJiraStore((state) => state.issues);
+  const loadCorpusPage = useJiraStore((state) => state.loadCorpusPage);
   const createIssue = useJiraStore((state) => state.createIssue);
   const updateStatus = useJiraStore((state) => state.updateStatus);
   const updateAssignee = useJiraStore((state) => state.updateAssignee);
@@ -118,6 +119,10 @@ export function JiraApp() {
   const [createOpen, setCreateOpen] = useState(false);
   const [commentState, setCommentState] = useState({ key: "", value: "" });
   const previousUserId = useRef(activeUser.id);
+
+  useEffect(() => {
+    void loadCorpusPage(1);
+  }, [loadCorpusPage]);
 
   const accessibleProjects = useMemo(
     () => Object.values(projects).filter((project) => canAccessProject(project, activeUser.id)),

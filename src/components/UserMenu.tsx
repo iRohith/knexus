@@ -12,6 +12,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { appUsers } from "@/lib/users";
 import { useActiveUser, useUserStore } from "@/lib/user-store";
 import { cn } from "@/lib/utils";
@@ -37,27 +38,29 @@ export function UserMenu() {
           </Button>
         }
       />
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuGroup>
           <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
-          {appUsers.map((user) => (
-            <DropdownMenuItem
-              key={user.id}
-              className="cursor-pointer gap-3"
-              onClick={() => setActiveUser(user.id)}
-            >
-              <Avatar size="sm">
-                <AvatarFallback className={cn("text-xs font-semibold", user.color)}>
-                  {user.initials}
-                </AvatarFallback>
-              </Avatar>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{user.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
-              </span>
-              {activeUser.id === user.id && <Check className="size-4" />}
-            </DropdownMenuItem>
-          ))}
+          <ScrollArea className="max-h-96">
+            {appUsers.map((user) => (
+              <DropdownMenuItem
+                key={user.id}
+                className="cursor-pointer gap-3"
+                onClick={() => setActiveUser(user.id)}
+              >
+                <Avatar size="sm">
+                  <AvatarFallback className={cn("text-xs font-semibold", user.color)}>
+                    {user.initials}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{user.name}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{user.email}</span>
+                </span>
+                {activeUser.id === user.id && <Check className="size-4" />}
+              </DropdownMenuItem>
+            ))}
+          </ScrollArea>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

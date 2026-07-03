@@ -185,7 +185,7 @@ export function normalizeCogneeQueryPayload(payload: CogneeQueryPayload) {
     queryId: payload.queryId,
     answerId: answerNodeId,
     generatedAt: Date.parse(payload.timestamp) || Date.now(),
-    source: payload.source === "fixture" ? "fixture" : "cognee",
+    source: payload.source === "corpus" ? "corpus" : "cognee",
   };
 
   return {

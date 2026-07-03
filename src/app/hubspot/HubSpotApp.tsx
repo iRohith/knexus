@@ -94,6 +94,7 @@ export function HubSpotApp({
   const contacts = useHubSpotStore((state) => state.contacts);
   const deals = useHubSpotStore((state) => state.deals);
   const tasks = useHubSpotStore((state) => state.tasks);
+  const loadCorpusPage = useHubSpotStore((state) => state.loadCorpusPage);
   const createContact = useHubSpotStore((state) => state.createContact);
   const createDeal = useHubSpotStore((state) => state.createDeal);
   const updateContact = useHubSpotStore((state) => state.updateContact);
@@ -108,6 +109,10 @@ export function HubSpotApp({
   const [createDealOpen, setCreateDealOpen] = useState(false);
   const [noteState, setNoteState] = useState({ key: "", value: "" });
   const previousUserId = useRef(activeUser.id);
+
+  useEffect(() => {
+    void loadCorpusPage(1);
+  }, [loadCorpusPage]);
 
   const snapshot = useMemo<HubSpotSnapshot>(
     () => ({ companies, contacts, deals, tasks }),

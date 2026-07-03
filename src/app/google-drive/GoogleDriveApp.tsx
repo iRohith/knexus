@@ -77,6 +77,7 @@ export function GoogleDriveApp({
   const searchParams = useSearchParams();
   const activeUser = useActiveUser();
   const items = useDriveStore((state) => state.items);
+  const loadCorpusPage = useDriveStore((state) => state.loadCorpusPage);
   const createFolder = useDriveStore((state) => state.createFolder);
   const uploadFile = useDriveStore((state) => state.uploadFile);
   const toggleStar = useDriveStore((state) => state.toggleStar);
@@ -90,6 +91,10 @@ export function GoogleDriveApp({
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const previousUserId = useRef(activeUser.id);
+
+  useEffect(() => {
+    void loadCorpusPage(1);
+  }, [loadCorpusPage]);
 
   const view = normalizeView(searchParams.get("view"));
   const folderId = searchParams.get("folder");

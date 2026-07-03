@@ -2,6 +2,18 @@
 
 import { create } from "zustand";
 
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusLabels,
+  corpusNormalizedString,
+  corpusNormalizedStrings,
+  corpusText,
+  dateInput,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
+
 export type HubSpotView = "contacts" | "deals" | "tasks";
 export type DealStage = "Qualified" | "Proposal" | "Negotiation" | "Closed Won" | "Closed Lost";
 export type LifecycleStage = "Lead" | "MQL" | "SQL" | "Customer";
@@ -67,6 +79,7 @@ export type HubSpotSnapshot = {
 };
 
 export type HubSpotState = HubSpotSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<void>;
   createContact: (input: {
     actorId: string;
     name: string;
@@ -118,8 +131,6 @@ export const dealStages: DealStage[] = [
 ];
 export const lifecycleStages: LifecycleStage[] = ["Lead", "MQL", "SQL", "Customer"];
 
-const now = Date.now() - 25 * 60 * 1000;
-
 function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto)
     return `${prefix}-${crypto.randomUUID()}`;
@@ -130,106 +141,112 @@ function note(authorId: string, body: string, timestamp: number): Note {
   return { id: makeId("hs-note"), authorId, body, timestamp };
 }
 
-function buildInitialSnapshot(): HubSpotSnapshot {
-  const companies: Record<string, Company> = {
-    northstar: {
-      id: "northstar",
-      name: "Northstar Analytics",
-      domain: "northstar.example",
-      industry: "Analytics",
-      ownerId: "maya",
-      memberIds: ["maya", "ari"],
-    },
-    atlas: {
-      id: "atlas",
-      name: "Atlas Works",
-      domain: "atlas.example",
-      industry: "Manufacturing",
-      ownerId: "riley",
-      memberIds: ["riley", "maya"],
-    },
-    prism: {
-      id: "prism",
-      name: "Prism Health",
-      domain: "prism.example",
-      industry: "Healthcare",
-      ownerId: "ari",
-      memberIds: ["riley", "ari"],
-    },
-  };
-  const contacts: Record<string, Contact> = {};
-  const deals: Record<string, Deal> = {};
-  const tasks: Record<string, Task> = {};
-  const names = [
-    "Morgan Lee",
-    "Sam Rivera",
-    "Nina Patel",
-    "Jordan Kim",
-    "Taylor Brooks",
-    "Casey Wong",
-    "Avery Stone",
-    "Jamie Cruz",
-  ];
-  Object.values(companies).forEach((company, companyIndex) => {
-    for (let index = 0; index < 8; index += 1) {
-      const ownerId = company.memberIds[(index + companyIndex) % company.memberIds.length];
-      const timestamp = now - (companyIndex * 8 + index + 1) * 4 * 60 * 60 * 1000;
-      const contactId = `${company.id}-contact-${index + 1}`;
+function buildInitialSnapshot(corpusCompanies = corpusEventsFor("hubspot")): HubSpotSnapshot {
+  if (corpusCompanies.length > 0) {
+    const memberIds = activeCorpusUserIds();
+    const companies: Record<string, Company> = {};
+    const contacts: Record<string, Contact> = {};
+    const deals: Record<string, Deal> = {};
+    const tasks: Record<string, Task> = {};
+
+    corpusCompanies.forEach((event, index) => {
+      const companyId = event.sourceEntityId;
+      const ownerId = event.actorId;
+      const labels = corpusLabels(event, ["enterprise"]);
+      const companyMembers = Array.from(new Set([ownerId, ...memberIds.slice(0, 8)]));
+      const domain = corpusNormalizedString(
+        event,
+        "domain",
+        `${event.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "")}.example`,
+      );
+      const industry = corpusNormalizedString(event, "industry", "");
+      const stage = corpusNormalizedString(event, "stage", "");
+      const notes = corpusNormalizedString(event, "notes", corpusText(event, 1400));
+      const nextStep = corpusNormalizedString(event, "nextStep", "Follow up on customer evidence");
+      const interestedProducts = corpusNormalizedStrings(event, "interestedProducts");
+      companies[companyId] = {
+        id: companyId,
+        name: event.title,
+        domain,
+        industry:
+          industry ||
+          (labels.includes("security")
+            ? "Security"
+            : labels.includes("runtime")
+              ? "AI Infrastructure"
+              : "Enterprise Software"),
+        ownerId,
+        memberIds: companyMembers,
+      };
+
+      const contactId = `${companyId}-primary-contact`;
       contacts[contactId] = {
         id: contactId,
-        name: names[(index + companyIndex) % names.length],
-        email: `${names[(index + companyIndex) % names.length].toLowerCase().replace(/\s+/g, ".")}@${company.domain}`,
-        phone: `+1 415 555 ${String(1200 + index + companyIndex * 80)}`,
-        title: ["VP Product", "RevOps Lead", "Engineering Manager", "COO"][index % 4],
-        companyId: company.id,
+        name: `${event.title.split(" ")[0]} Sponsor`,
+        email: `sponsor@${companies[companyId].domain}`,
+        phone: "+1 415 555 0182",
+        title: "Executive Sponsor",
+        companyId,
         ownerId,
-        stage: lifecycleStages[(index + companyIndex) % lifecycleStages.length],
-        lastActivityAt: timestamp,
-        notes:
-          index % 3 === 0
-            ? [note(ownerId, "Discovery call completed. Follow-up proposal requested.", timestamp)]
-            : [],
+        stage: ["Lead", "MQL", "SQL", "Customer"].includes(stage)
+          ? (stage as LifecycleStage)
+          : (["Lead", "MQL", "SQL", "Customer"][stableNumber(event.id, 4)] as LifecycleStage),
+        lastActivityAt: event.occurredAt,
+        notes: [
+          {
+            id: `${contactId}-note-1`,
+            authorId: ownerId,
+            body: notes,
+            timestamp: event.occurredAt,
+          },
+        ],
       };
-      const dealId = `${company.id}-deal-${index + 1}`;
+
+      const dealId = `${companyId}-deal`;
       deals[dealId] = {
         id: dealId,
-        name: `${company.name} expansion ${index + 1}`,
-        companyId: company.id,
+        name: `${event.title} - Redwood Private`,
+        companyId,
         contactId,
         ownerId,
-        stage: dealStages[(index + companyIndex) % dealStages.length],
-        amount: 12000 + index * 4500 + companyIndex * 8000,
-        closeDate: `2026-07-${String(10 + ((index + companyIndex) % 18)).padStart(2, "0")}`,
-        probability: [20, 40, 60, 80, 100][(index + companyIndex) % 5],
-        updatedAt: timestamp + 45 * 60 * 1000,
-        notes:
-          index % 2 === 0
-            ? [
-                note(
-                  ownerId,
-                  "Commercial terms reviewed with stakeholder.",
-                  timestamp + 45 * 60 * 1000,
-                ),
-              ]
-            : [],
+        stage: dealStages[stableNumber(event.id, dealStages.length)],
+        amount: 85000 + stableNumber(event.id, 9) * 25000,
+        closeDate: dateInput(
+          event.occurredAt + (30 + stableNumber(event.id, 80)) * 24 * 60 * 60 * 1000,
+        ),
+        probability: [25, 40, 55, 75, 90][stableNumber(event.id, 5)],
+        updatedAt: event.occurredAt,
+        notes: [
+          {
+            id: `${dealId}-note-1`,
+            authorId: ownerId,
+            body:
+              interestedProducts.length > 0
+                ? `${notes}\n\nProducts: ${interestedProducts.join(", ")}`
+                : notes,
+            timestamp: event.occurredAt,
+          },
+        ],
       };
-      tasks[`${company.id}-task-${index + 1}`] = {
-        id: `${company.id}-task-${index + 1}`,
-        title: [
-          "Send proposal",
-          "Book technical review",
-          "Update close plan",
-          "Prepare renewal notes",
-        ][index % 4],
+
+      tasks[`${companyId}-task`] = {
+        id: `${companyId}-task`,
+        title: nextStep,
         ownerId,
         contactId,
-        dueDate: `2026-07-${String(5 + ((index + companyIndex) % 20)).padStart(2, "0")}`,
-        completed: index % 5 === 0,
-        priority: ["High", "Medium", "Low"][index % 3] as Task["priority"],
+        dueDate: dateInput(event.occurredAt + (7 + index) * 24 * 60 * 60 * 1000),
+        completed: index % 4 === 0,
+        priority: ["High", "Medium", "Low"][stableNumber(event.id, 3)] as Task["priority"],
       };
-    }
-  });
-  return { companies, contacts, deals, tasks };
+    });
+
+    return { companies, contacts, deals, tasks };
+  }
+
+  return { companies: {}, contacts: {}, deals: {}, tasks: {} };
 }
 
 export function canAccessCompany(company: Company | undefined, userId: string) {
@@ -259,6 +276,16 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useHubSpotStore = create<HubSpotState>((set) => ({
   ...initialSnapshot,
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("hubspot", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      companies: { ...state.companies, ...snapshot.companies },
+      contacts: { ...state.contacts, ...snapshot.contacts },
+      deals: { ...state.deals, ...snapshot.deals },
+      tasks: { ...state.tasks, ...snapshot.tasks },
+    }));
+  },
   createContact: (input) => {
     let id = "";
     const name = input.name.trim();

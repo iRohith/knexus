@@ -2,6 +2,17 @@
 
 import { create } from "zustand";
 
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusLabels,
+  corpusNormalizedString,
+  corpusNormalizedStrings,
+  corpusText,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
+
 export type ConfluenceSpace = {
   id: string;
   key: string;
@@ -38,6 +49,7 @@ export type ConfluenceSnapshot = {
 };
 
 export type ConfluenceState = ConfluenceSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<void>;
   createPage: (input: {
     spaceId: string;
     actorId: string;
@@ -51,8 +63,6 @@ export type ConfluenceState = ConfluenceSnapshot & {
   toggleWatch: (pageId: string, actorId: string) => void;
 };
 
-const now = Date.now() - 35 * 60 * 1000;
-
 function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto)
     return `${prefix}-${crypto.randomUUID()}`;
@@ -63,72 +73,66 @@ function comment(authorId: string, body: string, timestamp: number): ConfluenceC
   return { id: makeId("conf-comment"), authorId, body, timestamp };
 }
 
-function buildInitialSnapshot(): ConfluenceSnapshot {
-  const spaces: Record<string, ConfluenceSpace> = {
-    product: {
-      id: "product",
-      key: "PROD",
-      name: "Product Handbook",
-      description: "Product strategy, specs, and launch rituals.",
-      memberIds: ["riley", "maya"],
-    },
-    engineering: {
-      id: "engineering",
-      key: "ENG",
-      name: "Engineering",
-      description: "Architecture, runbooks, and implementation notes.",
-      memberIds: ["riley", "ari"],
-    },
-    company: {
-      id: "company",
-      key: "CORP",
-      name: "Company Wiki",
-      description: "Operating rhythm, decisions, and team process.",
-      memberIds: ["riley", "maya", "ari"],
-    },
-  };
-  const pages: Record<string, ConfluencePage> = {};
-  Object.values(spaces).forEach((space, spaceIndex) => {
-    for (let index = 0; index < 10; index += 1) {
-      const timestamp = now - (spaceIndex * 10 + index + 1) * 5 * 60 * 60 * 1000;
-      const ownerId = space.memberIds[(index + spaceIndex) % space.memberIds.length];
-      const id = `${space.id}-page-${index + 1}`;
-      pages[id] = {
-        id,
-        spaceId: space.id,
-        parentId: index > 2 ? `${space.id}-page-${(index % 3) + 1}` : null,
-        title: [
-          "App quality bar",
-          "Release checklist",
-          "Account switching privacy",
-          "Design review notes",
-          "Incident response runbook",
-          "Data standards",
-        ][(index + spaceIndex) % 6],
-        body: "This page captures the current working agreement, implementation details, risks, and acceptance criteria for the team. Keep examples realistic and decisions easy to scan.",
-        authorId: ownerId,
-        ownerId,
-        labels: [
-          ["spec", "runbook", "decision"][index % 3],
-          ["frontend", "process", "security"][index % 3],
-        ],
-        watchers: Array.from(new Set([ownerId, ...space.memberIds.slice(0, 1)])),
-        createdAt: timestamp,
-        updatedAt: timestamp + 34 * 60 * 1000,
+function buildInitialSnapshot(corpusPages = corpusEventsFor("confluence")): ConfluenceSnapshot {
+  if (corpusPages.length > 0) {
+    const memberIds = activeCorpusUserIds();
+    const spaces: Record<string, ConfluenceSpace> = {};
+    const pages: Record<string, ConfluencePage> = {};
+
+    corpusPages.forEach((event, index) => {
+      const path = typeof event.metadata.sourcePath === "string" ? event.metadata.sourcePath : "";
+      const spaceId = path.split("/")[2]?.replace(/_/g, "-") || "redwood-knowledge";
+      if (!spaces[spaceId]) {
+        spaces[spaceId] = {
+          id: spaceId,
+          key: spaceId
+            .split("-")
+            .map((part) => part[0])
+            .join("")
+            .slice(0, 6)
+            .toUpperCase(),
+          name: spaceId
+            .split("-")
+            .map((part) => part[0].toUpperCase() + part.slice(1))
+            .join(" "),
+          description: "Redwood Inference knowledge base content from the enterprise corpus.",
+          memberIds,
+        };
+      }
+
+      pages[event.sourceEntityId] = {
+        id: event.sourceEntityId,
+        spaceId,
+        parentId: null,
+        title: event.title,
+        body: corpusNormalizedString(event, "content", corpusText(event, 2600)),
+        authorId: event.actorId,
+        ownerId: event.actorId,
+        labels:
+          corpusNormalizedStrings(event, "labels").length > 0
+            ? corpusNormalizedStrings(event, "labels")
+            : corpusLabels(event, ["redwood", "knowledge"]),
+        watchers: memberIds.slice(0, 4),
+        createdAt: event.occurredAt - (stableNumber(event.id, 14) + 1) * 24 * 60 * 60 * 1000,
+        updatedAt: event.occurredAt,
         comments:
           index % 3 === 0
             ? [
-                comment(
-                  space.memberIds[(index + 1) % space.memberIds.length],
-                  "Added one follow-up and a clearer acceptance note.",
-                  timestamp + 34 * 60 * 1000,
-                ),
+                {
+                  id: `${event.sourceEntityId}-comment-1`,
+                  authorId: memberIds[(index + 1) % memberIds.length],
+                  body: "Linked back to related customer evidence and implementation work.",
+                  timestamp: event.occurredAt + 20 * 60 * 1000,
+                },
               ]
             : [],
       };
-    }
-  });
-  return { spaces, pages };
+    });
+
+    return { spaces, pages };
+  }
+
+  return { spaces: {}, pages: {} };
 }
 
 export function canAccessSpace(space: ConfluenceSpace | undefined, userId: string) {
@@ -154,6 +158,14 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useConfluenceStore = create<ConfluenceState>((set) => ({
   ...initialSnapshot,
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("confluence", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      spaces: { ...state.spaces, ...snapshot.spaces },
+      pages: { ...state.pages, ...snapshot.pages },
+    }));
+  },
   createPage: (input) => {
     const title = input.title.trim();
     if (!title) return "";

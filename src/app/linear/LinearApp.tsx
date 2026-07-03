@@ -105,6 +105,7 @@ export function LinearApp({
   const projects = useLinearStore((state) => state.projects);
   const cycles = useLinearStore((state) => state.cycles);
   const issues = useLinearStore((state) => state.issues);
+  const loadCorpusPage = useLinearStore((state) => state.loadCorpusPage);
   const createIssue = useLinearStore((state) => state.createIssue);
   const updateIssueText = useLinearStore((state) => state.updateIssueText);
   const updateStatus = useLinearStore((state) => state.updateStatus);
@@ -120,6 +121,10 @@ export function LinearApp({
   const [createOpen, setCreateOpen] = useState(false);
   const [commentState, setCommentState] = useState({ key: "", value: "" });
   const previousUserId = useRef(activeUser.id);
+
+  useEffect(() => {
+    void loadCorpusPage(1);
+  }, [loadCorpusPage]);
 
   const accessibleTeams = useMemo(
     () => Object.values(teams).filter((team) => canAccessTeam(team, activeUser.id)),

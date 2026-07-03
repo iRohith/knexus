@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { buildFixtureGraph } from "@/lib/fixture-graph";
+import { buildCorpusGraph } from "@/lib/corpus-graph";
 import type {
   IntelligenceAnswer,
   KnowledgeEdge,
@@ -160,7 +160,7 @@ export function GraphPanel({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialNodeId);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(initialEdgeId);
 
-  const graph = useMemo(() => activeAnswer?.graph ?? buildFixtureGraph(), [activeAnswer?.graph]);
+  const graph = useMemo(() => activeAnswer?.graph ?? buildCorpusGraph(), [activeAnswer?.graph]);
   const nodesById = useMemo(
     () => new Map(graph.nodes.map((node) => [node.id, node])),
     [graph.nodes],
@@ -257,7 +257,7 @@ export function GraphPanel({
   const selectedEdgeSource = selectedEdge ? nodesById.get(selectedEdge.source) : null;
   const selectedEdgeTarget = selectedEdge ? nodesById.get(selectedEdge.target) : null;
   const activePathCount = activeAnswer?.reasoningSteps.length ?? 0;
-  const graphModeLabel = activeAnswer ? "Active answer" : "Sample dataset";
+  const graphModeLabel = activeAnswer ? "Active answer" : "Corpus dataset";
 
   const handleZoomIn = useCallback(() => graphRef.current?.zoomIn(), []);
   const handleZoomOut = useCallback(() => graphRef.current?.zoomOut(), []);

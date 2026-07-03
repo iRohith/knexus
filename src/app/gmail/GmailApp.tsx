@@ -91,13 +91,26 @@ function messageRecipients(message: Message) {
   return [...message.to, ...message.cc, ...message.bcc];
 }
 
+function mailboxKey(email: string) {
+  return (
+    email
+      .split("@")[0]
+      ?.toLowerCase()
+      .replace(/[^a-z0-9]/g, "") ?? ""
+  );
+}
+
+function sameMailbox(left: string, right: string) {
+  return left === right || (mailboxKey(left) !== "" && mailboxKey(left) === mailboxKey(right));
+}
+
 function messageIncludesRecipient(message: Message, email: string) {
-  return messageRecipients(message).some((recipient) => recipient.email === email);
+  return messageRecipients(message).some((recipient) => sameMailbox(recipient.email, email));
 }
 
 function userParticipatesInConversation(messages: Message[], email: string) {
   return messages.some(
-    (message) => message.from.email === email || messageIncludesRecipient(message, email),
+    (message) => sameMailbox(message.from.email, email) || messageIncludesRecipient(message, email),
   );
 }
 
@@ -117,10 +130,11 @@ function conversationMatchesFolder({
   const isTrash = conversation.systemLabels.includes("trash");
   const isSpam = conversation.systemLabels.includes("spam");
   const participates = userParticipatesInConversation(messages, activeEmail);
-  const sentByActiveUser = messages.some((message) => message.from.email === activeEmail);
+  const sentByActiveUser = messages.some((message) => sameMailbox(message.from.email, activeEmail));
   const receivedByActiveUser = messages.some(
     (message) =>
-      message.from.email !== activeEmail && messageIncludesRecipient(message, activeEmail),
+      !sameMailbox(message.from.email, activeEmail) &&
+      messageIncludesRecipient(message, activeEmail),
   );
 
   if (!participates && draftCount === 0) return false;
@@ -236,6 +250,7 @@ export function GmailApp({
   const messages = useGmailMailStore((state) => state.messages);
   const drafts = useGmailMailStore((state) => state.drafts);
   const labels = useGmailMailStore((state) => state.labels);
+  const loadCorpusPage = useGmailMailStore((state) => state.loadCorpusPage);
   const createDraft = useGmailMailStore((state) => state.createDraft);
   const mutateConversations = useGmailMailStore((state) => state.mutateConversations);
   const markRead = useGmailMailStore((state) => state.markRead);
@@ -250,6 +265,10 @@ export function GmailApp({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const showUndo = useUndoToast();
+
+  useEffect(() => {
+    void loadCorpusPage(Math.max(1, Math.ceil(page / 5)));
+  }, [loadCorpusPage, page]);
 
   function updateUrl(next: Record<string, string | number | null>) {
     const params = new URLSearchParams(searchParams.toString());

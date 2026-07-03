@@ -50,6 +50,7 @@ export function ConfluenceApp({
   const activeUser = useActiveUser();
   const spaces = useConfluenceStore((state) => state.spaces);
   const pages = useConfluenceStore((state) => state.pages);
+  const loadCorpusPage = useConfluenceStore((state) => state.loadCorpusPage);
   const createPage = useConfluenceStore((state) => state.createPage);
   const updatePage = useConfluenceStore((state) => state.updatePage);
   const addComment = useConfluenceStore((state) => state.addComment);
@@ -58,6 +59,10 @@ export function ConfluenceApp({
   const [createOpen, setCreateOpen] = useState(false);
   const [commentState, setCommentState] = useState({ key: "", value: "" });
   const previousUserId = useRef(activeUser.id);
+
+  useEffect(() => {
+    void loadCorpusPage(1);
+  }, [loadCorpusPage]);
 
   const snapshot = useMemo<ConfluenceSnapshot>(() => ({ spaces, pages }), [spaces, pages]);
   const accessibleSpaces = useMemo(

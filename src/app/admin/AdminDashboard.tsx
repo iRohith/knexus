@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -72,20 +72,67 @@ const appIconMap = {
   "audio-lines": AudioLines,
 } as const;
 
-function userName(userId: string) {
-  return appUsers.find((user) => user.id === userId)?.name ?? "Unknown";
+const maxVisibleStreamEvents = 100;
+
+function metadataText(event: ActivityEvent | undefined, key: string) {
+  const value = event?.metadata[key];
+  return typeof value === "string" ? value : "";
 }
 
-function userEmail(userId: string) {
-  return appUsers.find((user) => user.id === userId)?.email ?? "";
+function userName(userId: string, event?: ActivityEvent) {
+  return (
+    metadataText(event, "actorName") || appUsers.find((user) => user.id === userId)?.name || userId
+  );
 }
 
-function userInitials(userId: string) {
-  return appUsers.find((user) => user.id === userId)?.initials ?? "??";
+function userEmail(userId: string, event?: ActivityEvent) {
+  return (
+    metadataText(event, "actorEmail") || appUsers.find((user) => user.id === userId)?.email || ""
+  );
+}
+
+function userInitials(userId: string, event?: ActivityEvent) {
+  return (
+    metadataText(event, "actorInitials") ||
+    appUsers.find((user) => user.id === userId)?.initials ||
+    userId
+      .split("-")
+      .map((part) => part[0]?.toUpperCase())
+      .join("")
+      .slice(0, 2) ||
+    "??"
+  );
 }
 
 function formatCount(value: number) {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function truncateText(value: string, maxLength = 180) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function compactJsonValue(value: unknown): unknown {
+  if (typeof value === "string") return truncateText(value, 220);
+  if (Array.isArray(value)) return value.slice(0, 8).map(compactJsonValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .slice(0, 16)
+        .map(([key, item]) => [key, compactJsonValue(item)]),
+    );
+  }
+  return value;
+}
+
+function compactEventForDisplay(event: ActivityEvent) {
+  return {
+    ...event,
+    body: truncateText(event.body, 600),
+    metadata: compactJsonValue(event.metadata),
+  };
 }
 
 function updateParams(
@@ -178,6 +225,8 @@ export function AdminDashboard() {
   const resetDefaults = useActivityStore((state) => state.resetDefaults);
   const processEvents = useActivityStore((state) => state.processEvents);
   const processingRuns = useActivityStore((state) => state.processingRuns);
+  const loadCorpusPage = useActivityStore((state) => state.loadCorpusPage);
+  const loadCorpusAppPage = useActivityStore((state) => state.loadCorpusAppPage);
 
   const isBatchRunning = Object.values(processingRuns).some(
     (run) => run.status !== "completed" && run.status !== "failed",
@@ -190,6 +239,11 @@ export function AdminDashboard() {
     "all" | "selected" | "unchecked";
   const query = searchParams.get("q") ?? "";
 
+  useEffect(() => {
+    if (appFilter === "all") void loadCorpusPage(1);
+    else void loadCorpusAppPage(appFilter, 1);
+  }, [appFilter, loadCorpusAppPage, loadCorpusPage]);
+
   const allEvents = useMemo(() => getActivityEvents(eventsById), [eventsById]);
   const filteredEvents = filterActivityEvents(allEvents, {
     app: appFilter,
@@ -200,13 +254,34 @@ export function AdminDashboard() {
   });
   const selectedEvents = getSelectedEvents(allEvents);
   const selectedVisibleEvents = getSelectedEvents(filteredEvents);
+  const visibleEvents = filteredEvents.slice(0, maxVisibleStreamEvents);
   const liveEventCount = allEvents.filter((event) => event.metadata.seeded !== true).length;
   const uncheckedCount = allEvents.length - selectedEvents.length;
   const focusedEvent = (focusedEventId && eventsById[focusedEventId]) || filteredEvents[0] || null;
   const appCounts = getAppCounts(allEvents).filter((item) => item.count > 0);
-  const cogneePreview = buildCogneePreview(selectedVisibleEvents.slice(0, 8));
+  const cogneePreview = buildCogneePreview(selectedVisibleEvents.slice(0, 8)).map((item) => ({
+    ...item,
+    text: truncateText(item.text, 700),
+    metadata: compactJsonValue(item.metadata),
+  }));
+  const actorOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    appUsers.forEach((user) => byId.set(user.id, user.name));
+    allEvents.forEach((event) => byId.set(event.actorId, userName(event.actorId, event)));
+    return Array.from(byId.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id]) => id);
+  }, [allEvents]);
+  const actorNames = useMemo(() => {
+    const byId = new Map<string, string>();
+    allEvents.forEach((event) => byId.set(event.actorId, userName(event.actorId, event)));
+    appUsers.forEach((user) => {
+      if (!byId.has(user.id)) byId.set(user.id, user.name);
+    });
+    return byId;
+  }, [allEvents]);
   const allVisibleChecked =
-    filteredEvents.length > 0 && filteredEvents.every((event) => event.selected);
+    visibleEvents.length > 0 && visibleEvents.every((event) => event.selected);
 
   const setFilter = (next: Record<string, string | null>) =>
     updateParams(router, pathname, searchParams, next);
@@ -239,7 +314,11 @@ export function AdminDashboard() {
               tooltip="Restore defaults."
               variant="outline"
               className="bg-red-50 hover:bg-red-100 text-red-900/80 hover:text-red-900 border-red-200/50 hover:border-red-200 dark:bg-red-950/20 dark:hover:bg-red-950/40 dark:text-red-300/80 dark:hover:text-red-300 dark:border-red-900/30 dark:hover:border-red-900/50"
-              onClick={resetDefaults}
+              onClick={() => {
+                resetDefaults();
+                if (appFilter === "all") void loadCorpusPage(1);
+                else void loadCorpusAppPage(appFilter, 1);
+              }}
             />
             <Separator orientation="vertical" className="mx-1 hidden h-8 sm:block" />
             <Link
@@ -294,8 +373,10 @@ export function AdminDashboard() {
           />
           <FilterSelect
             value={actorFilter}
-            items={["all", ...appUsers.map((user) => user.id)]}
-            renderItem={(value) => (value === "all" ? "All actors" : userName(value))}
+            items={["all", ...actorOptions]}
+            renderItem={(value) =>
+              value === "all" ? "All actors" : (actorNames.get(value) ?? value)
+            }
             onChange={(value) => setFilter({ actor: value })}
           />
           <FilterSelect
@@ -324,14 +405,14 @@ export function AdminDashboard() {
               checked={allVisibleChecked}
               onCheckedChange={(checked) =>
                 toggleEventsSelected(
-                  filteredEvents.map((event) => event.id),
+                  visibleEvents.map((event) => event.id),
                   checked === true,
                 )
               }
             />
             <span className="text-sm text-muted-foreground">
-              Showing {formatCount(filteredEvents.length)} events ·{" "}
-              {formatCount(selectedVisibleEvents.length)} included
+              Showing {formatCount(visibleEvents.length)} of {formatCount(filteredEvents.length)}{" "}
+              events · {formatCount(selectedVisibleEvents.length)} included
             </span>
           </div>
           <ScrollArea className="min-h-0 flex-1">
@@ -344,7 +425,7 @@ export function AdminDashboard() {
               </div>
             ) : (
               <div className="divide-y">
-                {filteredEvents.map((event) => (
+                {visibleEvents.map((event) => (
                   <ActivityEventRow
                     key={event.id}
                     event={event}
@@ -428,49 +509,49 @@ function ActivityEventRow({
   return (
     <button
       className={cn(
-        "grid w-full cursor-pointer gap-3 bg-background px-4 py-3 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:grid-cols-[1.75rem_13rem_minmax(0,1fr)_8rem_6rem] lg:px-8",
+        "grid w-full cursor-pointer gap-3 bg-background px-4 py-3 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:min-h-24 lg:grid-cols-[1.75rem_13rem_minmax(0,1fr)_8rem_6rem] lg:px-8",
         focused && "bg-blue-50/70 dark:bg-blue-950/20",
       )}
       onClick={onFocus}
       type="button"
     >
-      <span onClick={(event_) => event_.stopPropagation()}>
+      <span className="flex h-full items-center" onClick={(event_) => event_.stopPropagation()}>
         <Checkbox
           aria-label={`Include ${event.title}`}
-          className="mt-1 cursor-pointer"
+          className="cursor-pointer"
           checked={event.selected}
           onCheckedChange={(checked) => onSelected(checked === true)}
         />
       </span>
       <AppMarker app={event.sourceApp} />
       <span className="min-w-0">
-        <span className="mb-1 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="capitalize">
+        <span className="mb-1 flex min-w-0 items-center gap-2">
+          <Badge variant="outline" className="shrink-0 capitalize">
             {formatEventType(event.type)}
           </Badge>
-          <span className="text-xs text-muted-foreground">{event.action}</span>
+          <span className="truncate text-xs text-muted-foreground">{event.action}</span>
         </span>
         <span className="block truncate font-medium">{event.title}</span>
-        <span className="mt-0.5 block line-clamp-2 text-sm text-muted-foreground">
-          {event.body}
-        </span>
+        <span className="mt-0.5 block truncate text-sm text-muted-foreground">{event.body}</span>
         <span className="mt-1 block truncate text-xs text-muted-foreground">
           {event.sourceEntityType} · {event.sourceEntityId}
         </span>
       </span>
       <span className="flex min-w-0 items-center gap-2">
         <Avatar size="sm">
-          <AvatarFallback>{userInitials(event.actorId)}</AvatarFallback>
+          <AvatarFallback>{userInitials(event.actorId, event)}</AvatarFallback>
         </Avatar>
         <span className="min-w-0">
-          <span className="block truncate text-sm font-medium">{userName(event.actorId)}</span>
+          <span className="block truncate text-sm font-medium">
+            {userName(event.actorId, event)}
+          </span>
           <span className="block truncate text-xs text-muted-foreground">
-            {userEmail(event.actorId)}
+            {userEmail(event.actorId, event)}
           </span>
         </span>
       </span>
-      <span className="flex items-center justify-between gap-2 lg:block">
-        <span className="block text-xs text-muted-foreground">
+      <span className="flex min-w-0 items-center justify-between gap-2 lg:block">
+        <span className="block truncate text-xs text-muted-foreground">
           {formatRelativeTime(event.occurredAt)}
         </span>
         <Link
@@ -492,7 +573,9 @@ function EventJson({ event }: { event: ActivityEvent }) {
       <div className="rounded-md border p-3">
         <AppMarker app={event.sourceApp} />
         <div className="mt-3 font-medium">{event.title}</div>
-        <p className="mt-1 text-sm text-muted-foreground">{event.body}</p>
+        <p className="mt-1 line-clamp-4 text-sm text-muted-foreground">
+          {truncateText(event.body, 500)}
+        </p>
         <Link
           className="mt-3 inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border px-2.5 text-sm font-medium hover:bg-muted"
           href={event.sourceUrl}
@@ -502,7 +585,7 @@ function EventJson({ event }: { event: ActivityEvent }) {
         </Link>
       </div>
       <pre className="max-h-80 overflow-auto rounded-md border bg-muted/50 p-3 text-xs leading-5">
-        {JSON.stringify(event, null, 2)}
+        {JSON.stringify(compactEventForDisplay(event), null, 2)}
       </pre>
     </div>
   );

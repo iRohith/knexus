@@ -2,6 +2,20 @@
 
 import { create } from "zustand";
 
+import {
+  activeCorpusUserIds,
+  corpusEventsFor,
+  corpusLabels,
+  corpusNormalizedRecords,
+  corpusNormalizedString,
+  corpusNormalizedStrings,
+  corpusText,
+  corpusUserIdFromName,
+  dateInput,
+  loadCorpusEventsFor,
+  stableNumber,
+} from "@/lib/corpus-app-data";
+
 export type LinearStatus = "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled";
 export type LinearPriority = "Urgent" | "High" | "Medium" | "Low" | "No priority";
 
@@ -66,6 +80,7 @@ export type LinearSnapshot = {
 };
 
 export type LinearState = LinearSnapshot & {
+  loadCorpusPage: (page?: number) => Promise<void>;
   createIssue: (input: {
     teamId: string;
     actorId: string;
@@ -109,8 +124,6 @@ export const linearPriorities: LinearPriority[] = [
   "No priority",
 ];
 
-const now = Date.now() - 40 * 60 * 1000;
-
 function makeId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto)
     return `${prefix}-${crypto.randomUUID()}`;
@@ -121,126 +134,119 @@ function note(authorId: string, body: string, timestamp: number): LinearComment 
   return { id: makeId("lin-note"), authorId, body, timestamp };
 }
 
-function buildInitialSnapshot(): LinearSnapshot {
-  const teams: Record<string, LinearTeam> = {
-    core: {
-      id: "core",
-      key: "COR",
-      name: "Core Product",
-      description: "App fidelity, navigation, and shared shell.",
-      memberIds: ["riley", "maya", "ari"],
-    },
-    design: {
-      id: "design",
-      key: "DSN",
-      name: "Design Systems",
-      description: "Components, tokens, accessibility, and polish.",
-      memberIds: ["riley", "maya"],
-    },
-    infra: {
-      id: "infra",
-      key: "INF",
-      name: "Infrastructure",
-      description: "Sync, auth boundaries, build health, and deployment.",
-      memberIds: ["riley", "ari"],
-    },
-  };
-  const projects: Record<string, LinearProject> = {};
-  const cycles: Record<string, LinearCycle> = {};
-  Object.values(teams).forEach((team, index) => {
-    projects[`${team.id}-apps`] = {
-      id: `${team.id}-apps`,
-      teamId: team.id,
-      name: "Core Apps",
-      targetDate: "2026-07-22",
-      health: index === 2 ? "At risk" : "On track",
+function buildInitialSnapshot(corpusIssues = corpusEventsFor("linear")): LinearSnapshot {
+  if (corpusIssues.length > 0) {
+    const memberIds = activeCorpusUserIds();
+    const teams: Record<string, LinearTeam> = {
+      product: {
+        id: "product",
+        key: "PM",
+        name: "Product",
+        description: "Roadmap, customer evidence, and launch planning.",
+        memberIds,
+      },
+      engineering: {
+        id: "engineering",
+        key: "ENG",
+        name: "Engineering",
+        description: "Runtime, platform, reliability, and implementation.",
+        memberIds,
+      },
+      design: {
+        id: "design",
+        key: "DES",
+        name: "Design",
+        description: "Console workflows, customer-facing UX, and handoff.",
+        memberIds,
+      },
     };
-    projects[`${team.id}-quality`] = {
-      id: `${team.id}-quality`,
-      teamId: team.id,
-      name: "Quality pass",
-      targetDate: "2026-08-02",
-      health: index === 1 ? "On track" : "At risk",
-    };
-    cycles[`${team.id}-cycle-1`] = {
-      id: `${team.id}-cycle-1`,
-      teamId: team.id,
-      name: "Cycle 28",
-      startsAt: "2026-07-01",
-      endsAt: "2026-07-14",
-    };
-    cycles[`${team.id}-cycle-2`] = {
-      id: `${team.id}-cycle-2`,
-      teamId: team.id,
-      name: "Cycle 29",
-      startsAt: "2026-07-15",
-      endsAt: "2026-07-28",
-    };
-  });
-
-  const titles = [
-    "Tighten URL state when switching accounts",
-    "Build realistic command palette sample data",
-    "Add list density controls for issue rows",
-    "Fix board card overflow on mobile",
-    "Improve empty states for filtered views",
-    "Add optimistic comments to detail pane",
-    "Polish dark mode priority colors",
-    "Create regression checklist for route privacy",
-    "Make activity stream scannable",
-    "Add project health summary widgets",
-  ];
-  const issues: Record<string, LinearIssue> = {};
-  Object.values(teams).forEach((team, teamIndex) => {
-    for (let index = 0; index < 20; index += 1) {
-      const timestamp = now - (teamIndex * 20 + index + 2) * 38 * 60 * 1000;
-      const id = `${team.id}-issue-${index + 1}`;
-      const status = linearStatuses[(index + teamIndex) % linearStatuses.length];
-      const creatorId = team.memberIds[(index + teamIndex) % team.memberIds.length];
-      const assigneeId = team.memberIds[(index + 1) % team.memberIds.length];
-      const projectId = index % 2 === 0 ? `${team.id}-apps` : `${team.id}-quality`;
-      const cycleId = index % 3 === 0 ? `${team.id}-cycle-2` : `${team.id}-cycle-1`;
-      const comments =
-        index % 4 === 0
-          ? [
-              note(
-                assigneeId,
-                "I added the implementation notes and a verification path.",
-                timestamp + 25 * 60 * 1000,
-              ),
-            ]
-          : [];
-      issues[id] = {
-        id,
+    const projects: Record<string, LinearProject> = {};
+    const cycles: Record<string, LinearCycle> = {};
+    Object.values(teams).forEach((team, index) => {
+      projects[`${team.id}-evidence`] = {
+        id: `${team.id}-evidence`,
         teamId: team.id,
-        projectId,
-        cycleId,
-        number: index + 1,
-        identifier: `${team.key}-${index + 1}`,
-        title: titles[(index + teamIndex) % titles.length],
-        description:
-          "Keep this scoped to product behavior, keyboard access, and realistic initial state.",
-        status,
-        priority: linearPriorities[(index + teamIndex) % linearPriorities.length],
-        assigneeId,
-        creatorId,
-        subscriberIds: Array.from(new Set([creatorId, assigneeId])),
-        labels: [
-          ["frontend", "backend", "ux"][index % 3],
-          ["privacy", "quality", "release"][index % 3],
-        ],
-        estimate: index % 5 === 0 ? null : [1, 2, 3, 5, 8][index % 5],
-        createdAt: timestamp,
-        updatedAt: Math.max(timestamp, ...comments.map((comment) => comment.timestamp)),
-        comments,
-        activity: [
-          note(creatorId, "created the issue", timestamp),
-          note(assigneeId, `moved to ${status}`, timestamp + 10 * 60 * 1000),
-        ],
+        name: "Customer Evidence to Execution",
+        targetDate: dateInput(Date.UTC(2026, 8 + index, 15)),
+        health: ["On track", "At risk", "On track"][index] as LinearProject["health"],
       };
-    }
-  });
-  return { teams, projects, cycles, issues };
+      cycles[`${team.id}-cycle`] = {
+        id: `${team.id}-cycle`,
+        teamId: team.id,
+        name: "Enterprise Readiness",
+        startsAt: "2026-06-15",
+        endsAt: "2026-07-12",
+      };
+    });
+
+    const issues: Record<string, LinearIssue> = {};
+    corpusIssues.forEach((event, index) => {
+      const text = `${event.title} ${corpusText(event)}`.toLowerCase();
+      const teamId = text.includes("design")
+        ? "design"
+        : text.includes("runtime")
+          ? "engineering"
+          : "product";
+      const team = teams[teamId];
+      const number = Number(event.sourceEntityId.match(/\d+/)?.[0] ?? index + 1);
+      const assigneeId = event.actorId;
+      const normalizedStatus = corpusNormalizedString(event, "status", "");
+      const normalizedPriority = corpusNormalizedString(event, "priority", "");
+      const status = linearStatuses.includes(normalizedStatus as LinearStatus)
+        ? (normalizedStatus as LinearStatus)
+        : linearStatuses[stableNumber(event.id, linearStatuses.length)];
+      const priority = linearPriorities.includes(normalizedPriority as LinearPriority)
+        ? (normalizedPriority as LinearPriority)
+        : linearPriorities[stableNumber(event.id, linearPriorities.length)];
+      const labels = corpusNormalizedStrings(event, "labels");
+      const comments = corpusNormalizedRecords(event, "comments");
+      issues[event.sourceEntityId] = {
+        id: event.sourceEntityId,
+        teamId,
+        projectId: `${teamId}-evidence`,
+        cycleId: `${teamId}-cycle`,
+        number,
+        identifier: `${team.key}-${number}`,
+        title: event.title,
+        description: corpusNormalizedString(event, "description", corpusText(event, 2200)),
+        status,
+        priority,
+        assigneeId,
+        creatorId: event.actorId,
+        subscriberIds: Array.from(new Set([event.actorId, ...memberIds.slice(0, 5)])),
+        labels: labels.length > 0 ? labels : corpusLabels(event, ["customer-evidence"]),
+        estimate: [1, 2, 3, 5, 8][stableNumber(event.id, 5)],
+        createdAt: event.occurredAt - (3 + index) * 24 * 60 * 60 * 1000,
+        updatedAt: event.occurredAt,
+        comments:
+          comments.length > 0
+            ? comments
+                .slice(0, 4)
+                .map((comment, commentIndex) =>
+                  note(
+                    corpusUserIdFromName(
+                      typeof comment.author === "string" ? comment.author : "",
+                      memberIds[(index + commentIndex + 1) % memberIds.length] ?? event.actorId,
+                    ),
+                    typeof comment.body === "string" ? comment.body : corpusText(event, 700),
+                    event.occurredAt + (commentIndex + 1) * 10 * 60 * 1000,
+                  ),
+                )
+            : [
+                note(
+                  memberIds[(index + 1) % memberIds.length] ?? event.actorId,
+                  "Connected this issue to upstream customer and source evidence.",
+                  event.occurredAt + 10 * 60 * 1000,
+                ),
+              ],
+        activity: [note(event.actorId, `Status is ${status}`, event.occurredAt)],
+      };
+    });
+
+    return { teams, projects, cycles, issues };
+  }
+
+  return { teams: {}, projects: {}, cycles: {}, issues: {} };
 }
 
 export function canAccessTeam(team: LinearTeam | undefined, userId: string) {
@@ -288,6 +294,16 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useLinearStore = create<LinearState>((set) => ({
   ...initialSnapshot,
+  loadCorpusPage: async (page = 1) => {
+    const events = await loadCorpusEventsFor("linear", page);
+    const snapshot = buildInitialSnapshot(events);
+    set((state) => ({
+      teams: { ...state.teams, ...snapshot.teams },
+      projects: { ...state.projects, ...snapshot.projects },
+      cycles: { ...state.cycles, ...snapshot.cycles },
+      issues: { ...state.issues, ...snapshot.issues },
+    }));
+  },
   createIssue: (input) => {
     const title = input.title.trim();
     if (!title) return "";
