@@ -44,3 +44,10 @@ server:
   port: 8080
   servlet:
     context-path: /api/v1
+
+app:
+  admin:
+    email: admin@corp-krc.com        # default
+    password: ChangeMe@123           # default — override in production!
+    full-name: Super Admin           # default
+
