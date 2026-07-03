@@ -108,6 +108,7 @@ type ActivityState = {
   events: Record<string, ActivityEvent>;
   focusedEventId: string | null;
   processingRuns: Record<string, ProcessingRun>;
+  loadProcessingRuns: () => Promise<void>;
   loadCorpusPage: (page?: number, eventsPerApp?: number) => Promise<void>;
   loadCorpusAppPage: (app: SourceApp, page?: number) => Promise<void>;
   appendEvent: (input: ActivityEventInput) => string;
@@ -279,6 +280,19 @@ export const useActivityStore = create<ActivityState>((set) => ({
   events: initialCorpusEvents,
   focusedEventId: null,
   processingRuns: {},
+  loadProcessingRuns: async () => {
+    try {
+      const res = await fetch("/corp-os-data/processing_runs.json");
+      if (res.ok) {
+        const runs = await res.json();
+        set((state) => ({
+          processingRuns: { ...state.processingRuns, ...runs },
+        }));
+      }
+    } catch {
+      // Ignored if file doesn't exist
+    }
+  },
   loadCorpusPage: async (page = 1, eventsPerApp = defaultAdminEventsPerApp) => {
     const pages = await Promise.all(
       sourceApps.map(async (app) => {

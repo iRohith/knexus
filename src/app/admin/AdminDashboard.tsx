@@ -242,6 +242,7 @@ export function AdminDashboard() {
   useEffect(() => {
     if (appFilter === "all") void loadCorpusPage(1);
     else void loadCorpusAppPage(appFilter, 1);
+    void useActivityStore.getState().loadProcessingRuns();
   }, [appFilter, loadCorpusAppPage, loadCorpusPage]);
 
   const allEvents = useMemo(() => getActivityEvents(eventsById), [eventsById]);
