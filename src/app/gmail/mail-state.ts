@@ -419,7 +419,8 @@ function buildInitialSnapshot(corpusThreads = corpusEventsFor("gmail")): MailSna
               ? [makeSampleAttachment(id, messageIndex)]
               : [],
           read: stableNumber(`${event.id}-${messageIndex}`, 3) !== 0,
-          sentByMe: sameMailbox(from.email, getCurrentUser().email) || (isSent && messageIndex === 0),
+          sentByMe:
+            sameMailbox(from.email, getCurrentUser().email) || (isSent && messageIndex === 0),
         });
         messages[message.id] = message;
         return message;

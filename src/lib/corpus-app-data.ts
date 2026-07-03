@@ -187,7 +187,9 @@ export function buildCorpusUsers() {
 
 export function activeCorpusUserIds(limit = 18) {
   // Return the 10 canonical demo users first (from dataset ranking), then fill with others
-  const otherUsers = appUsers.filter((u) => !(demoUserIds as readonly string[]).includes(u.id)).map((u) => u.id);
+  const otherUsers = appUsers
+    .filter((u) => !(demoUserIds as readonly string[]).includes(u.id))
+    .map((u) => u.id);
   return [...Array.from(demoUserIds), ...otherUsers].slice(0, Math.max(limit, demoUserIds.length));
 }
 

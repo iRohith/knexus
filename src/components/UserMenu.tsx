@@ -42,10 +42,11 @@ export function UserMenu() {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Signed in as</DropdownMenuLabel>
           <ScrollArea className="max-h-96">
-            {(demoUserIds
-              .map((id) => appUsers.find((u) => u.id === id))
-              .filter(Boolean) as NonNullable<(typeof appUsers)[number]>[])
-              .map((user) => (
+            {(
+              demoUserIds
+                .map((id) => appUsers.find((u) => u.id === id))
+                .filter(Boolean) as NonNullable<(typeof appUsers)[number]>[]
+            ).map((user) => (
               <DropdownMenuItem
                 key={user.id}
                 className="cursor-pointer gap-3"

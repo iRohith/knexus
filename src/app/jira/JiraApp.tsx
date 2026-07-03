@@ -648,7 +648,7 @@ function IssueCard({
       data-testid="issue-card"
       className="w-full cursor-pointer rounded-md border border-[#dfe1e6] bg-white p-3 text-left shadow-xs hover:border-[#0c66e4] dark:border-[#2c333a] dark:bg-[#161a1d]"
       onClick={() => onOpen(issue.id)}
-      onKeyDown={(e) => e.key === 'Enter' && onOpen(issue.id)}
+      onKeyDown={(e) => e.key === "Enter" && onOpen(issue.id)}
     >
       <div className="flex items-start gap-2">
         {typeIcon(issue.type)}
@@ -717,7 +717,7 @@ function BacklogView({
           data-testid="issue-card"
           className="grid w-full cursor-pointer grid-cols-[1fr_auto] gap-3 border-b border-[#dfe1e6] p-3 text-left last:border-b-0 hover:bg-[#f7f8f9] md:grid-cols-[7rem_1fr_8rem_8rem_7rem_auto] dark:border-[#2c333a] dark:hover:bg-[#22272b]"
           onClick={() => onOpen(issue.id)}
-          onKeyDown={(e) => e.key === 'Enter' && onOpen(issue.id)}
+          onKeyDown={(e) => e.key === "Enter" && onOpen(issue.id)}
         >
           <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
             {typeIcon(issue.type)}

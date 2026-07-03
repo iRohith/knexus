@@ -605,7 +605,7 @@ function IssueList({
           tabIndex={0}
           data-testid="issue-card"
           onClick={() => onOpen(issue.id)}
-          onKeyDown={(e) => e.key === 'Enter' && onOpen(issue.id)}
+          onKeyDown={(e) => e.key === "Enter" && onOpen(issue.id)}
           className="grid w-full cursor-pointer grid-cols-[1fr_auto] gap-3 border-b border-[#e2e4ea] p-3 text-left last:border-b-0 hover:bg-[#f7f8fb] md:grid-cols-[7rem_1fr_8rem_8rem_7rem_auto] dark:border-[#2a2d36] dark:hover:bg-[#22242d]"
         >
           <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
@@ -672,7 +672,7 @@ function Board({
                   data-testid="issue-card"
                   className="w-full cursor-pointer rounded-md border border-[#e2e4ea] bg-white p-3 text-left shadow-xs hover:border-[#5e6ad2] dark:border-[#2a2d36] dark:bg-[#171922]"
                   onClick={() => onOpen(issue.id)}
-                  onKeyDown={(e) => e.key === 'Enter' && onOpen(issue.id)}
+                  onKeyDown={(e) => e.key === "Enter" && onOpen(issue.id)}
                 >
                   <div className="line-clamp-2 font-medium">{issue.title}</div>
                   <div className="mt-2 flex flex-wrap gap-1">

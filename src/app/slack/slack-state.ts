@@ -182,7 +182,6 @@ function buildInitialSnapshot(corpusThreads = corpusEventsFor("slack")): SlackSn
       });
     });
 
-
     return { channels, dms, messages };
   }
 

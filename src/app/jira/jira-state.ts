@@ -151,7 +151,6 @@ function buildInitialSnapshot(corpusIssues = corpusEventsFor("jira")): JiraSnaps
   const issues: Record<string, JiraIssue> = {};
 
   if (corpusIssues.length > 0) {
-
     corpusIssues.forEach((event, index) => {
       const projectId = event.sourceEntityId.startsWith("INT") ? "internal" : "support";
       const keyMatch = event.sourceEntityId.match(/([A-Z]+)-?(\d+)/);
