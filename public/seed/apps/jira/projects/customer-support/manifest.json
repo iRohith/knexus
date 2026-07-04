@@ -1,0 +1,1 @@
+{"route":"apps/jira/projects/customer-support","count":100,"pageSize":50,"pageCount":2,"pages":[{"page":1,"count":50,"path":"/seed/apps/jira/projects/customer-support/page-0001.json"},{"page":2,"count":50,"path":"/seed/apps/jira/projects/customer-support/page-0002.json"}]}
