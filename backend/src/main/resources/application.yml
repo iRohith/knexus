@@ -47,7 +47,7 @@ server:
 
 app:
   admin:
-    email: admin@corp-krc.com        # default
-    password: ChangeMe@123           # default — override in production!
+    email: admin@corp.com        # default
+    password: admin@123           # default — override in production!
     full-name: Super Admin           # default
 

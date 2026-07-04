@@ -10,10 +10,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class DltConsumer {
 
-    @KafkaListener(
-            topics = KafkaConfig.TOPIC_DOCUMENT_UPLOADED_DLT,
-            groupId = "knowledge-nexus-dlt-group"
-    )
+    @KafkaListener(topics = KafkaConfig.TOPIC_DOCUMENT_UPLOADED_DLT, groupId = "knowledge-nexus-dlt-group-v5", properties = {
+            "auto.offset.reset=latest" })
     public void handleDltMessage(ConsumerRecord<String, Object> record) {
         log.error("DLT message received - topic: {}, key: {}, value: {}",
                 record.topic(), record.key(), record.value());

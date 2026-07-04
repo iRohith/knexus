@@ -16,6 +16,8 @@ public interface IndexingJobRepository extends JpaRepository<IndexingJob, UUID> 
 
     Optional<IndexingJob> findByDocumentId(UUID documentId);
 
+    boolean existsByDocumentId(UUID documentId);
+
     Page<IndexingJob> findByStatus(IndexingStatus status, Pageable pageable);
 
     long countByStatus(IndexingStatus status);
