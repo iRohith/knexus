@@ -3,7 +3,10 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { GraphPanel } from "@/app/GraphPanel";
+import dynamic from "next/dynamic";
+const GraphPanel = dynamic(() => import("@/app/GraphPanel").then((mod) => mod.GraphPanel), {
+  ssr: false,
+});
 import { useIntelligenceStore } from "@/app/intelligence-state";
 
 export function KnowledgeGraphWorkbench() {

@@ -4,7 +4,10 @@ import { useEffect } from "react";
 import { BrainCircuit, Network } from "lucide-react";
 
 import { ChatPanel } from "@/app/ChatPanel";
-import { GraphPanel } from "@/app/GraphPanel";
+import dynamic from "next/dynamic";
+const GraphPanel = dynamic(() => import("@/app/GraphPanel").then((mod) => mod.GraphPanel), {
+  ssr: false,
+});
 import { useIntelligenceStore } from "@/app/intelligence-state";
 import { Badge } from "@/components/ui/badge";
 

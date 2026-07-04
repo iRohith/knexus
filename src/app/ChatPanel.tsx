@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { BrainCircuit, ExternalLink, LoaderCircle, SendHorizonal, Sparkles, X } from "lucide-react";
 import { FaSlack } from "react-icons/fa";
 import {
@@ -137,7 +139,9 @@ function AnswerBlock({ answer }: { answer: IntelligenceAnswer }) {
             <Badge variant="outline">{answer.responseTimeMs} ms</Badge>
           </div>
         </div>
-        <p className="text-sm leading-7 text-foreground">{answer.answer}</p>
+        <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-7 text-foreground">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer.answer}</ReactMarkdown>
+        </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <Link
             className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer gap-2")}

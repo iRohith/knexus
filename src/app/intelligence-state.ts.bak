@@ -1,0 +1,199 @@
+"use client";
+
+import { create } from "zustand";
+
+import { normalizeCogneeQueryPayload } from "@/lib/cognee-adapter";
+import type {
+  CogneeQueryPayload,
+  IntelligenceAnswer,
+  CogneeRecallEntry,
+} from "@/lib/knowledge-graph-types";
+
+export const EXAMPLE_PROMPTS = [
+  "What evidence explains the private-upgrade requirements for enterprise customers?",
+  "Which customer signals influenced audit logging and retention work?",
+  "How did runtime latency, routing, and dedicated capacity decisions connect across teams?",
+  "What source records support the current RBAC and console-query direction?",
+];
+
+type IntelligenceState = {
+  answers: IntelligenceAnswer[];
+  activeAnswerId: string | null;
+  isLoading: boolean;
+  snapshotPayloads: CogneeQueryPayload[] | null;
+  askQuestion: (text: string) => void;
+  setActiveAnswer: (id: string | null) => void;
+  clearAnswers: () => void;
+};
+
+export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
+  answers: [],
+  activeAnswerId: null,
+  isLoading: false,
+  snapshotPayloads: null,
+
+  askQuestion: async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || get().isLoading) return;
+
+    set({ isLoading: true, activeAnswerId: null });
+
+    let match: CogneeQueryPayload | undefined;
+    const useMock = process.env.NEXT_PUBLIC_USE_MOCK_BACKEND === "true";
+
+    if (!useMock) {
+      try {
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+
+        // 1. Authenticate with backend
+        const authRes = await fetch(`${backendUrl}/api/v1/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "admin@corp.com", password: "admin@123" }),
+        });
+
+        if (!authRes.ok) {
+          throw new Error("Backend authentication failed: " + authRes.status);
+        }
+
+        const { accessToken } = await authRes.json();
+
+        // 2. Query knowledge graph
+        const res = await fetch(`${backendUrl}/api/v1/knowledge/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ question: trimmed }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+
+          // Try to extract recall from the backend's reasoningPath,
+          // which might be an array or an object depending on Cognee version
+          let recall: CogneeRecallEntry[] = [];
+          if (Array.isArray(data.reasoningPath)) {
+            data.reasoningPath.forEach((item: Record<string, unknown>) => {
+              if (item.search_result && Array.isArray(item.search_result)) {
+                recall.push(...(item.search_result as unknown as CogneeRecallEntry[]));
+              } else {
+                recall.push(item as unknown as CogneeRecallEntry);
+              }
+            });
+          } else if (data.reasoningPath?.search_result) {
+            recall = Array.isArray(data.reasoningPath.search_result)
+              ? (data.reasoningPath.search_result as unknown as CogneeRecallEntry[])
+              : [data.reasoningPath.search_result as unknown as CogneeRecallEntry];
+          } else if (
+            data.reasoningPath?.raw &&
+            (data.reasoningPath.raw as Record<string, unknown>).recall
+          ) {
+            recall = (data.reasoningPath.raw as Record<string, unknown>)
+              .recall as unknown as CogneeRecallEntry[];
+          }
+
+          match = {
+            queryId: data.queryId || `backend-${Date.now()}`,
+            queryKey: "backend",
+            question: data.question || trimmed,
+            answer: data.answer || "No answer generated.",
+            responseTimeMs: data.responseTimeMs || 0,
+            timestamp: data.timestamp || new Date().toISOString(),
+            source: "cognee",
+            datasetName: "knowledge-nexus",
+            raw: { recall },
+          };
+        } else {
+          console.error("Backend request failed with status:", res.status);
+          const errorMsg = await res.text();
+          console.error("Backend Error Details:", errorMsg);
+
+          let parsedErr = "The backend service is unavailable.";
+          try {
+            parsedErr = JSON.parse(errorMsg).message || parsedErr;
+          } catch {}
+
+          match = {
+            queryId: `error-${Date.now()}`,
+            queryKey: "error",
+            question: trimmed,
+            answer: `Backend Error (${res.status}): ${parsedErr}`,
+            responseTimeMs: 0,
+            timestamp: new Date().toISOString(),
+            source: "cognee",
+            datasetName: "knowledge-nexus",
+            raw: { recall: [] },
+          };
+        }
+      } catch (err) {
+        console.error("Failed to call backend api/query:", err);
+      }
+    }
+
+    if (!match) {
+      const now = Date.now();
+      const answer: IntelligenceAnswer = {
+        id: `answer-empty-${now}`,
+        queryKey: "no-match",
+        question: trimmed,
+        answer:
+          "No local corpus answer matches this question yet. When Cognee is connected, this surface will show the returned answer, source citations, and graph path.",
+        createdAt: now,
+        source: "corpus",
+        responseTimeMs: 520,
+        citations: [],
+        cognee: { recall: [], raw: {} },
+        graph: {
+          nodes: [],
+          edges: [],
+          generatedAt: now,
+          source: "corpus",
+        },
+        highlightedNodeIds: [],
+        highlightedEdgeIds: [],
+        reasoningSteps: [],
+      };
+
+      set((state) => ({
+        isLoading: false,
+        answers: [answer, ...state.answers],
+        activeAnswerId: answer.id,
+      }));
+      return;
+    }
+
+    const normalized = normalizeCogneeQueryPayload(match);
+    const now = Date.now();
+    const answer: IntelligenceAnswer = {
+      id: match.queryId,
+      queryKey: match.queryKey ?? "unknown",
+      question: trimmed,
+      answer: normalized.answer,
+      createdAt: now,
+      source: "cognee",
+      responseTimeMs: match.responseTimeMs ?? 0,
+      citations: normalized.citations,
+      cognee: {
+        datasetName: match.datasetName,
+        recall: match.raw?.recall ?? [],
+        raw: match.raw,
+      },
+      graph: normalized.graph,
+      highlightedNodeIds: normalized.highlightedNodeIds,
+      highlightedEdgeIds: normalized.highlightedEdgeIds,
+      reasoningSteps: normalized.reasoningSteps,
+    };
+
+    set((state) => ({
+      isLoading: false,
+      answers: [answer, ...state.answers],
+      activeAnswerId: answer.id,
+    }));
+  },
+
+  setActiveAnswer: (id) => set({ activeAnswerId: id }),
+
+  clearAnswers: () => set({ answers: [], activeAnswerId: null }),
+}));
