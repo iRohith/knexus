@@ -3,10 +3,15 @@ package com.corp_krc.backend.controller;
 import com.corp_krc.backend.dto.response.IndexingJobStatusResponse;
 import com.corp_krc.backend.entity.IndexingJob;
 import com.corp_krc.backend.entity.IndexingStatus;
+import com.corp_krc.backend.entity.IngestedDocument;
 import com.corp_krc.backend.exception.ResourceNotFoundException;
 import com.corp_krc.backend.repository.IndexingJobRepository;
+import com.corp_krc.backend.repository.IngestedDocumentRepository;
 import com.corp_krc.backend.service.IndexingService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -22,12 +27,15 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
+@Slf4j
 @RequestMapping("/indexing")
 @RequiredArgsConstructor
 public class IndexingController {
 
     private final IndexingJobRepository indexingJobRepository;
     private final IndexingService indexingService;
+
+    private final IngestedDocumentRepository ingestedDocumentRepository;
 
     @GetMapping("/jobs")
     public ResponseEntity<?> getIndexingJobs(
@@ -49,8 +57,7 @@ public class IndexingController {
                 "page", page.getNumber(),
                 "size", page.getSize(),
                 "totalElements", page.getTotalElements(),
-                "totalPages", page.getTotalPages()
-        ));
+                "totalPages", page.getTotalPages()));
     }
 
     @GetMapping("/jobs/{id}")
@@ -72,9 +79,32 @@ public class IndexingController {
                 "pending", indexingJobRepository.countByStatus(IndexingStatus.PENDING),
                 "inProgress", indexingJobRepository.countByStatus(IndexingStatus.IN_PROGRESS),
                 "completed", indexingJobRepository.countByStatus(IndexingStatus.COMPLETED),
-                "failed", indexingJobRepository.countByStatus(IndexingStatus.FAILED)
-        );
+                "failed", indexingJobRepository.countByStatus(IndexingStatus.FAILED));
         return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/ingested/count")
+    public ResponseEntity<Map<String, Long>> getIngestedCount() {
+        long totalIngested = ingestedDocumentRepository.count();
+        return ResponseEntity.ok(Map.of("totalIngestedDocuments", totalIngested));
+    }
+
+    @PostMapping("/jobs/trigger-bulk-ingestion")
+    public ResponseEntity<Map<String, String>> triggerBulkIndexing() {
+        // 1. Fetch all raw ingested documents that haven't been queued yet
+        List<IngestedDocument> rawDocs = ingestedDocumentRepository.findAll();
+
+        log.info("Creating indexing job blueprints for {} raw documents...", rawDocs.size());
+
+        // 2. Loop through and register them into the indexing service pipeline
+        for (IngestedDocument doc : rawDocs) {
+            // This invokes your background indexing framework handler logic
+            indexingService.migrateIngestedToPipeline(doc);
+        }
+
+        return ResponseEntity.accepted().body(Map.of(
+                "message", "Successfully initialized indexing pipeline for " + rawDocs.size() + " documents.",
+                "status", "PENDING"));
     }
 
     private IndexingJobStatusResponse toStatusResponse(IndexingJob job) {

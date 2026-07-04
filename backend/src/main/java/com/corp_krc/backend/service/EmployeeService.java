@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Slf4j
@@ -30,6 +31,9 @@ public class EmployeeService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmployeeMapper employeeMapper;
+    // private final DocumentRepository documentRepository;
+    // private final DocumentEventProducer documentEventProducer;
+    // private final IndexingJobRepository indexingJobRepository;
 
     @Transactional(readOnly = true)
     public PagedResponse<EmployeeResponse> getAllEmployees(Pageable pageable) {

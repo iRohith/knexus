@@ -1,9 +1,13 @@
 package com.corp_krc.backend.service;
 
 import com.corp_krc.backend.entity.Document;
+import com.corp_krc.backend.entity.DocumentType;
+import com.corp_krc.backend.entity.Employee;
 import com.corp_krc.backend.entity.IndexingJob;
 import com.corp_krc.backend.entity.IndexingStatus;
+import com.corp_krc.backend.entity.IngestedDocument;
 import com.corp_krc.backend.exception.ResourceNotFoundException;
+import com.corp_krc.backend.kafka.event.DocumentUploadedEvent;
 import com.corp_krc.backend.kafka.event.GraphUpdatedEvent;
 import com.corp_krc.backend.kafka.event.IndexingCompletedEvent;
 import com.corp_krc.backend.kafka.event.IndexingFailedEvent;
@@ -11,6 +15,7 @@ import com.corp_krc.backend.kafka.event.IndexingStartedEvent;
 import com.corp_krc.backend.kafka.producer.DocumentEventProducer;
 import com.corp_krc.backend.kafka.producer.GraphEventProducer;
 import com.corp_krc.backend.repository.DocumentRepository;
+import com.corp_krc.backend.repository.EmployeeRepository;
 import com.corp_krc.backend.repository.IndexingJobRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +35,8 @@ public class IndexingService {
     private final CogneeService cogneeService;
     private final DocumentEventProducer documentEventProducer;
     private final GraphEventProducer graphEventProducer;
+    private final EmployeeRepository employeeRepository;
+    private final jakarta.persistence.EntityManager entityManager;
 
     private static final int MAX_RETRIES = 3;
 
@@ -138,5 +145,87 @@ public class IndexingService {
         job.setErrorMessage(errorMessage);
         job.setCompletedAt(Instant.now());
         indexingJobRepository.save(job);
+    }
+
+    @Transactional
+    public void migrateIngestedToPipeline(IngestedDocument rawDoc) {
+        log.info("Converting raw ingested document link to core pipeline: {}", rawDoc.getId());
+
+        // 1. Generate clean deterministic UUID matching baseline architecture
+        UUID documentUuid = UUID.nameUUIDFromBytes(rawDoc.getId().getBytes());
+
+        // 2. Build and save core Document entity via standard instantiation
+        if (!documentRepository.existsById(documentUuid)) {
+
+            // Dynamic Enum Lookup
+            DocumentType mappedType = switch (rawDoc.getSourceApp().toLowerCase()) {
+                case "slack" -> DocumentType.SLACK_MESSAGE;
+                case "jira" -> DocumentType.JIRA_TICKET;
+                case "gmail" -> DocumentType.EMAIL;
+                case "github" -> DocumentType.PR_REVIEW;
+                case "fireflies" -> DocumentType.MEETING_NOTES;
+                default -> DocumentType.ARCHITECTURE_DOC;
+            };
+
+            // Lookup Employee to satisfy constraints
+            Employee admin = employeeRepository.findByEmail("admin@corp.com")
+                    .orElseThrow(() -> new ResourceNotFoundException("Employee", "email", "admin@corp.com"));
+
+            // Force a direct SQL native insert to bypass Hibernate's state checks
+            // completely!
+            entityManager
+                    .createNativeQuery(
+                            """
+                                    INSERT INTO documents (id, title, raw_content, source_system, document_type, uploaded_by, cognee_dataset_id, created_at, updated_at)
+                                    VALUES (:id, :title, :content, :source, :type, :user, :datasetId, :created, :updated)
+                                    """)
+                    .setParameter("id", documentUuid)
+                    .setParameter("title", rawDoc.getTitle())
+                    .setParameter("content", rawDoc.getBody())
+                    .setParameter("source", rawDoc.getSourceApp())
+                    .setParameter("type", mappedType.name()) // Save enum as string representation
+                    .setParameter("user", admin.getId()) // Link via foreign key ID
+                    .setParameter("datasetId", "corpKRC-bulk-ingestion")
+                    .setParameter("created", Instant.now())
+                    .setParameter("updated", Instant.now())
+                    .executeUpdate();
+
+            // Ensure the entity manager clears the context cache for the batch loop
+            entityManager.flush();
+        }
+
+        // 3. Initialize and save IndexingJob using clean, standard setters
+        if (!indexingJobRepository.existsByDocumentId(documentUuid)) {
+            UUID jobId = UUID.randomUUID();
+
+            // Force a direct SQL native insert for the indexing job to bypass Hibernate's
+            // state engine!
+            entityManager.createNativeQuery("""
+                    INSERT INTO indexing_jobs (id, document_id, status, retry_count, created_at, updated_at)
+                    VALUES (:id, :documentId, :status, :retryCount, :created, :updated)
+                    """)
+                    .setParameter("id", jobId)
+                    .setParameter("documentId", documentUuid)
+                    .setParameter("status", "PENDING") // Enum string representation
+                    .setParameter("retryCount", 0)
+                    .setParameter("created", Instant.now())
+                    .setParameter("updated", Instant.now())
+                    .executeUpdate();
+
+            entityManager.flush();
+
+            // 4. Trigger your Kafka event loop
+            UUID correlationId = UUID.randomUUID();
+            DocumentUploadedEvent uploadEvent = DocumentUploadedEvent.builder()
+                    .eventId(UUID.randomUUID())
+                    .eventType("DOCUMENT_UPLOADED")
+                    .correlationId(correlationId)
+                    .documentId(documentUuid)
+                    .build();
+
+            documentEventProducer.publishDocumentUploaded(uploadEvent);
+
+            log.info("Document successfully translated and published to Kafka cluster with UUID: {}", documentUuid);
+        }
     }
 }

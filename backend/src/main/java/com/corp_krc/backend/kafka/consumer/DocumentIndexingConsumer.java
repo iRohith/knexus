@@ -15,10 +15,8 @@ public class DocumentIndexingConsumer {
 
     private final IndexingService indexingService;
 
-    @KafkaListener(
-            topics = KafkaConfig.TOPIC_DOCUMENT_UPLOADED,
-            groupId = "knowledge-nexus-indexing-group"
-    )
+    @KafkaListener(topics = KafkaConfig.TOPIC_DOCUMENT_UPLOADED, groupId = "knowledge-nexus-indexing-group-v5", properties = {
+            "auto.offset.reset=latest" })
     public void handleDocumentUploaded(DocumentUploadedEvent event) {
         log.info("Consumed document.uploaded event: documentId={}, correlationId={}",
                 event.getDocumentId(), event.getCorrelationId());
