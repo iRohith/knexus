@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
+import { useEffect } from "react";
 
 import {
   Accordion,
@@ -116,7 +117,12 @@ function progressValue(status: ProcessingRunStatus) {
 
 export function AdminHistory() {
   const processingRunsById = useActivityStore((state) => state.processingRuns);
+  const loadProcessingRuns = useActivityStore((state) => state.loadProcessingRuns);
   const runs = getProcessingRuns(processingRunsById);
+
+  useEffect(() => {
+    void loadProcessingRuns();
+  }, [loadProcessingRuns]);
 
   return (
     <main className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col bg-[#f7f9fc] text-sm text-foreground dark:bg-[#0d1117]">

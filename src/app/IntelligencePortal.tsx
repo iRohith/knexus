@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { BrainCircuit, Network } from "lucide-react";
 
 import { ChatPanel } from "@/app/ChatPanel";
@@ -11,8 +12,24 @@ export function IntelligencePortal() {
   const { answers, activeAnswerId } = useIntelligenceStore();
   const activeAnswer = answers.find((answer) => answer.id === activeAnswerId) ?? null;
 
+  useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, []);
+
   return (
-    <main className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col bg-[#f7f9fc] text-foreground dark:bg-[#0d1117]">
+    <main className="flex h-[calc(100dvh-3.5rem)] min-h-0 w-full max-w-full flex-col overflow-hidden bg-[#f7f9fc] text-foreground dark:bg-[#0d1117]">
       <header className="shrink-0 border-b bg-background px-4 py-4 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
@@ -27,20 +44,20 @@ export function IntelligencePortal() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Local sample data</Badge>
+            <Badge variant="secondary">Cognee Cloud snapshot</Badge>
             <Badge variant="outline" className="gap-1">
               <Network className="size-3" />
-              Cognee-ready graph shape
+              Read-only graph
             </Badge>
           </div>
         </div>
       </header>
 
-      <section className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1.08fr)_minmax(25rem,0.92fr)]">
-        <div className="min-h-[28rem] border-b lg:min-h-0 lg:border-r lg:border-b-0">
+      <section className="grid min-h-0 min-w-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(0,1.08fr)_minmax(25rem,0.92fr)]">
+        <div className="min-h-[28rem] min-w-0 overflow-hidden border-b lg:min-h-0 lg:border-r lg:border-b-0">
           <GraphPanel activeAnswer={activeAnswer} />
         </div>
-        <div className="min-h-0">
+        <div className="min-h-0 min-w-0 overflow-hidden">
           <ChatPanel />
         </div>
       </section>

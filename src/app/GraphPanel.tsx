@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { renderToString } from "react-dom/server";
 import {
   BrainCircuit,
@@ -13,6 +13,7 @@ import {
   Network,
   RotateCcw,
   Search,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -44,10 +45,11 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { buildCorpusGraph } from "@/lib/corpus-graph";
+import { loadCogneeKnowledgeGraph } from "@/lib/cognee-static-graph";
 import type {
   IntelligenceAnswer,
   KnowledgeEdge,
+  KnowledgeGraph,
   KnowledgeNode,
   KnowledgeNodeType,
 } from "@/lib/knowledge-graph-types";
@@ -72,6 +74,12 @@ const appColors: Record<SourceApp, string> = {
 };
 
 const nodeTypes: KnowledgeNodeType[] = ["answer", "cognee_result", "evidence", "graph_node"];
+const emptyCogneeGraph: KnowledgeGraph = {
+  nodes: [],
+  edges: [],
+  generatedAt: 0,
+  source: "cognee",
+};
 
 function formatType(value: string) {
   return value.replace(/_/g, " ");
@@ -146,6 +154,123 @@ function edgeSourceHref(edge: KnowledgeEdge | null, nodesById: Map<string, Knowl
   return nodeSourceHref(node ?? null);
 }
 
+function cleanNodeText(rawText: string) {
+  const parts = rawText.split("Content:");
+  if (parts.length > 1) {
+    return parts.slice(1).join("Content:").trim();
+  }
+  return rawText;
+}
+
+function GraphDetailsContent({
+  selectedNode,
+  selectedEdge,
+  selectedEdgeSource,
+  selectedEdgeTarget,
+  nodesById,
+}: {
+  selectedNode: KnowledgeNode | null;
+  selectedEdge: KnowledgeEdge | null;
+  selectedEdgeSource: KnowledgeNode | null;
+  selectedEdgeTarget: KnowledgeNode | null;
+  nodesById: Map<string, KnowledgeNode>;
+}) {
+  if (!selectedNode && !selectedEdge) {
+    return (
+      <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+        Select a node or edge to inspect its provenance.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {selectedNode && (
+        <section className="space-y-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <NodeTypeIcon type={selectedNode.type} className="size-4" />
+              <h2 className="font-semibold">{selectedNode.label}</h2>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {selectedNode.sourceApps.map((app) => (
+                <AppPill key={app} app={app} />
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Memory Content
+            </span>
+            <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/20 p-3 text-sm leading-6">
+              {cleanNodeText(selectedNode.text)}
+            </p>
+          </div>
+
+          {Object.keys(selectedNode.metadata).length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Metadata
+              </span>
+              <div className="grid grid-cols-2 gap-3 rounded-md border bg-muted/10 p-3">
+                {Object.entries(selectedNode.metadata).map(([key, value]) => {
+                  if (typeof value === "object" && value !== null) return null;
+                  return (
+                    <div key={key} className="flex min-w-0 flex-col gap-1">
+                      <span className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+                        {key.replace(/([A-Z])/g, " $1").trim()}
+                      </span>
+                      <span className="truncate text-xs font-medium" title={String(value)}>
+                        {String(value)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <Link
+            className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer gap-2")}
+            href={nodeSourceHref(selectedNode)}
+          >
+            Open source
+            <ExternalLink className="size-3.5" />
+          </Link>
+        </section>
+      )}
+
+      {selectedEdge && (
+        <section className="space-y-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <BrainCircuit className="size-4" />
+              <h2 className="font-semibold">{selectedEdge.label}</h2>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {selectedEdgeSource?.label} {"->"} {selectedEdgeTarget?.label}
+            </p>
+          </div>
+          <Badge variant="secondary" className="capitalize">
+            {formatType(selectedEdge.type)}
+          </Badge>
+          <p className="text-sm leading-6 text-muted-foreground">
+            This semantic relationship is part of the memory path used to explain why an answer
+            follows from the source text.
+          </p>
+          <Link
+            className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer gap-2")}
+            href={edgeSourceHref(selectedEdge, nodesById)}
+          >
+            Open source
+            <ExternalLink className="size-3.5" />
+          </Link>
+        </section>
+      )}
+    </>
+  );
+}
+
 export function GraphPanel({
   activeAnswer,
   fullPage = false,
@@ -154,13 +279,34 @@ export function GraphPanel({
 }: GraphPanelProps) {
   const { resolvedTheme } = useTheme();
   const graphRef = useRef<GraphCanvasRef | null>(null);
+  const graphSurfaceRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SourceApp | "all">("all");
   const [typeFilter, setTypeFilter] = useState<KnowledgeNodeType | "all">("all");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialNodeId);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(initialEdgeId);
+  const [defaultGraph, setDefaultGraph] = useState<KnowledgeGraph | null>(null);
+  const [isDefaultGraphLoading, setIsDefaultGraphLoading] = useState(true);
 
-  const graph = useMemo(() => activeAnswer?.graph ?? buildCorpusGraph(), [activeAnswer?.graph]);
+  useEffect(() => {
+    let cancelled = false;
+    loadCogneeKnowledgeGraph()
+      .then((graph) => {
+        if (!cancelled) setDefaultGraph(graph);
+      })
+      .finally(() => {
+        if (!cancelled) setIsDefaultGraphLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const graph = useMemo(
+    () => activeAnswer?.graph ?? defaultGraph ?? emptyCogneeGraph,
+    [activeAnswer?.graph, defaultGraph],
+  );
   const nodesById = useMemo(
     () => new Map(graph.nodes.map((node) => [node.id, node])),
     [graph.nodes],
@@ -213,16 +359,16 @@ export function GraphPanel({
     const nodes = visibleNodes.map((node) => {
       const highlighted = highlightedNodeIds.has(node.id);
       const selected = selectedNodeId === node.id;
+      const sourceApp = node.primarySourceApp ?? node.sourceApps[0];
+      const isSourceNode = Boolean(sourceApp);
       return {
         id: node.id,
         label: node.label.length > 28 ? `${node.label.slice(0, 25)}...` : node.label,
-        fill: highlighted
-          ? "#f59e0b"
-          : node.primarySourceApp
-            ? appColors[node.primarySourceApp]
-            : "#8b5cf6",
-        size: highlighted || selected ? 10 : 5,
-        icon: node.primarySourceApp ? getIconDataUrl(node.primarySourceApp) : undefined,
+        fill: highlighted ? "#f59e0b" : sourceApp ? appColors[sourceApp] : "#8b5cf6",
+        size: isSourceNode ? (highlighted || selected ? 20 : 16) : highlighted || selected ? 10 : 5,
+        icon: sourceApp ? getIconDataUrl(sourceApp) : undefined,
+        labelVisible: isSourceNode || highlighted || selected,
+        subLabel: sourceApp ? sourceAppMeta[sourceApp].label : undefined,
         data: node,
       };
     });
@@ -254,19 +400,44 @@ export function GraphPanel({
 
   const selectedNode = selectedNodeId ? (nodesById.get(selectedNodeId) ?? null) : null;
   const selectedEdge = selectedEdgeId ? (edgesById.get(selectedEdgeId) ?? null) : null;
-  const selectedEdgeSource = selectedEdge ? nodesById.get(selectedEdge.source) : null;
-  const selectedEdgeTarget = selectedEdge ? nodesById.get(selectedEdge.target) : null;
+  const selectedEdgeSource = selectedEdge ? (nodesById.get(selectedEdge.source) ?? null) : null;
+  const selectedEdgeTarget = selectedEdge ? (nodesById.get(selectedEdge.target) ?? null) : null;
   const activePathCount = activeAnswer?.reasoningSteps.length ?? 0;
-  const graphModeLabel = activeAnswer ? "Active answer" : "Corpus dataset";
+  const graphModeLabel = activeAnswer ? "Active answer" : "Saved Cognee graph";
+  const hasVisibleNodes = visibleGraph.nodes.length > 0;
 
   const handleZoomIn = useCallback(() => graphRef.current?.zoomIn(), []);
   const handleZoomOut = useCallback(() => graphRef.current?.zoomOut(), []);
-  const handleFit = useCallback(() => graphRef.current?.fitNodesInView(), []);
+  const handleFit = useCallback(() => {
+    if (!hasVisibleNodes) return;
+    graphRef.current?.fitNodesInView(undefined, { animated: false });
+  }, [hasVisibleNodes]);
   const handleReset = useCallback(() => {
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-    graphRef.current?.resetControls();
-    graphRef.current?.fitNodesInView();
+    graphRef.current?.resetControls(false);
+    if (!hasVisibleNodes) return;
+    graphRef.current?.fitNodesInView(undefined, { animated: false });
+  }, [hasVisibleNodes]);
+
+  useEffect(() => {
+    if (!hasVisibleNodes) return;
+    const frame = window.requestAnimationFrame(() => {
+      graphRef.current?.fitNodesInView(undefined, { animated: false });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasVisibleNodes, visibleGraph.nodes.length, visibleGraph.edges.length]);
+
+  useEffect(() => {
+    const element = graphSurfaceRef.current;
+    if (!element) return;
+
+    const preventPageScroll = (event: WheelEvent) => {
+      event.preventDefault();
+    };
+
+    element.addEventListener("wheel", preventPageScroll, { passive: false, capture: true });
+    return () => element.removeEventListener("wheel", preventPageScroll, { capture: true });
   }, []);
 
   const reagraphTheme = useMemo(() => {
@@ -294,8 +465,8 @@ export function GraphPanel({
   return (
     <div
       className={cn(
-        "relative flex min-h-0 bg-[#f7f9fc] text-sm dark:bg-[#0d1117]",
-        fullPage ? "h-[calc(100vh-3.5rem)]" : "h-full",
+        "relative flex min-h-0 overflow-hidden bg-[#f7f9fc] text-sm dark:bg-[#0d1117]",
+        "h-full w-full max-w-full",
       )}
     >
       {fullPage && (
@@ -307,8 +478,8 @@ export function GraphPanel({
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {activeAnswer
-                ? "Graph from the active Cognee-style answer payload."
-                : "Default Cognee-style sample graph."}
+                ? "Graph from the active answer payload."
+                : "Saved Cognee graph snapshot."}
             </p>
           </div>
           <ScrollArea className="min-h-0 flex-1">
@@ -326,7 +497,8 @@ export function GraphPanel({
                   </div>
                 ) : (
                   <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                    Showing a default sample graph. Ask a question to focus the graph on the answer.
+                    Showing the saved Cognee graph snapshot. Ask a question to focus the graph on an
+                    answer path.
                   </div>
                 )}
               </section>
@@ -368,6 +540,7 @@ export function GraphPanel({
             size="icon-sm"
             variant="outline"
             className="cursor-pointer bg-background/90 backdrop-blur"
+            disabled={!hasVisibleNodes}
             onClick={handleFit}
           >
             <Maximize2 className="size-4" />
@@ -376,6 +549,7 @@ export function GraphPanel({
             size="icon-sm"
             variant="outline"
             className="cursor-pointer bg-background/90 backdrop-blur"
+            disabled={!hasVisibleNodes}
             onClick={handleReset}
           >
             <RotateCcw className="size-4" />
@@ -440,7 +614,9 @@ export function GraphPanel({
             <p className="mt-1 text-xs text-muted-foreground">
               {activeAnswer
                 ? `${activePathCount} evidence results from the active answer.`
-                : `${graph.nodes.length} sample nodes from Cognee-shaped data.`}
+                : isDefaultGraphLoading
+                  ? "Loading saved graph snapshot..."
+                  : `${graph.nodes.length} rendered nodes and ${graph.edges.length} relationships from the saved graph.`}
             </p>
             {activeAnswer && (
               <Link
@@ -457,29 +633,58 @@ export function GraphPanel({
           </div>
         )}
 
-        <GraphCanvas
-          ref={graphRef}
-          nodes={visibleGraph.nodes}
-          edges={visibleGraph.edges}
-          actives={activeAnswer?.highlightedNodeIds ?? []}
-          selections={[selectedNodeId, selectedEdgeId].filter(Boolean) as string[]}
-          layoutType="hierarchicalLr"
-          theme={reagraphTheme}
-          labelType="nodes"
-          defaultNodeSize={5}
-          minNodeSize={4}
-          maxNodeSize={10}
-          animated
-          cameraMode="pan"
-          onNodeClick={(node) => {
-            setSelectedNodeId(node.id);
-            setSelectedEdgeId(null);
-          }}
-          onEdgeClick={(edge) => {
-            setSelectedEdgeId(edge.id);
-            setSelectedNodeId(null);
-          }}
-        />
+        {hasVisibleNodes && (
+          <div
+            ref={graphSurfaceRef}
+            className="absolute inset-0 overscroll-contain touch-none"
+            onWheelCapture={(event) => event.preventDefault()}
+          >
+            <GraphCanvas
+              ref={graphRef}
+              nodes={visibleGraph.nodes}
+              edges={visibleGraph.edges}
+              actives={activeAnswer?.highlightedNodeIds ?? []}
+              selections={[selectedNodeId, selectedEdgeId].filter(Boolean) as string[]}
+              layoutType="forceDirected2d"
+              layoutOverrides={{
+                forceLinkDistance: 130,
+                forceLinkStrength: 0.35,
+                forceCharge: -520,
+                nodeStrength: -180,
+              }}
+              theme={reagraphTheme}
+              labelType="nodes"
+              defaultNodeSize={5}
+              minNodeSize={4}
+              maxNodeSize={22}
+              animated={false}
+              cameraMode="pan"
+              onNodeClick={(node) => {
+                setSelectedNodeId(node.id);
+                setSelectedEdgeId(null);
+              }}
+              onEdgeClick={(edge) => {
+                setSelectedEdgeId(edge.id);
+                setSelectedNodeId(null);
+              }}
+            />
+          </div>
+        )}
+
+        {!isDefaultGraphLoading && graph.nodes.length === 0 && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 p-6 backdrop-blur-sm">
+            <div className="max-w-md rounded-md border bg-background p-5 text-center shadow-sm">
+              <div className="mx-auto flex size-10 items-center justify-center rounded-lg bg-muted">
+                <Network className="size-5" />
+              </div>
+              <h2 className="mt-3 font-semibold">Cognee graph snapshot not found</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Run the read-only graph fetch script to create{" "}
+                <span className="font-mono">public/cognee/graph.json</span>.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5">
           {sourceApps.map((app) => (
@@ -497,6 +702,35 @@ export function GraphPanel({
             </Badge>
           ))}
         </div>
+        {!fullPage && (selectedNode || selectedEdge) && (
+          <div className="absolute top-3 right-16 z-10 w-80 max-w-[calc(100vw-5rem)] overflow-hidden rounded-md border bg-background/95 shadow-md backdrop-blur">
+            <div className="flex shrink-0 items-center justify-between border-b px-4 py-2 font-medium">
+              Details
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded-full"
+                onClick={() => {
+                  setSelectedNodeId(null);
+                  setSelectedEdgeId(null);
+                }}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <ScrollArea className="h-[400px] max-h-[calc(100vh-10rem)]">
+              <div className="p-4">
+                <GraphDetailsContent
+                  selectedNode={selectedNode}
+                  selectedEdge={selectedEdge}
+                  selectedEdgeSource={selectedEdgeSource}
+                  selectedEdgeTarget={selectedEdgeTarget}
+                  nodesById={nodesById}
+                />
+              </div>
+            </ScrollArea>
+          </div>
+        )}
       </section>
 
       {fullPage && (
@@ -504,71 +738,13 @@ export function GraphPanel({
           <div className="border-b p-4 font-medium">Details</div>
           <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-4 p-4">
-              {selectedNode && (
-                <section className="space-y-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <NodeTypeIcon type={selectedNode.type} className="size-4" />
-                      <h2 className="font-semibold">{selectedNode.label}</h2>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {selectedNode.sourceApps.map((app) => (
-                        <AppPill key={app} app={app} />
-                      ))}
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="capitalize">
-                    {formatType(selectedNode.type)}
-                  </Badge>
-                  <p className="rounded-md border bg-muted/30 p-3 text-sm leading-6">
-                    {selectedNode.text}
-                  </p>
-                  <pre className="max-h-56 overflow-auto rounded-md border bg-muted/40 p-3 text-xs">
-                    {JSON.stringify(selectedNode.metadata, null, 2)}
-                  </pre>
-                  <Link
-                    className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer gap-2")}
-                    href={nodeSourceHref(selectedNode)}
-                  >
-                    Open source
-                    <ExternalLink className="size-3.5" />
-                  </Link>
-                </section>
-              )}
-
-              {selectedEdge && (
-                <section className="space-y-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <BrainCircuit className="size-4" />
-                      <h2 className="font-semibold">{selectedEdge.label}</h2>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {selectedEdgeSource?.label} {"->"} {selectedEdgeTarget?.label}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="capitalize">
-                    {formatType(selectedEdge.type)}
-                  </Badge>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    This semantic relationship is part of the memory path used to explain why an
-                    answer follows from the source text.
-                  </p>
-                  <Link
-                    className={cn(buttonVariants({ variant: "outline" }), "cursor-pointer gap-2")}
-                    href={edgeSourceHref(selectedEdge, nodesById)}
-                  >
-                    Open source
-                    <ExternalLink className="size-3.5" />
-                  </Link>
-                </section>
-              )}
-
-              {!selectedNode && !selectedEdge && (
-                <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Select a node or edge to inspect its provenance.
-                </div>
-              )}
+              <GraphDetailsContent
+                selectedNode={selectedNode}
+                selectedEdge={selectedEdge}
+                selectedEdgeSource={selectedEdgeSource}
+                selectedEdgeTarget={selectedEdgeTarget}
+                nodesById={nodesById}
+              />
             </div>
           </ScrollArea>
         </aside>

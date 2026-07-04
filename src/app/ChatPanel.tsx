@@ -17,6 +17,13 @@ import {
 
 import { sourceAppMeta, type SourceApp } from "@/app/admin/activity-state";
 import { EXAMPLE_PROMPTS, useIntelligenceStore } from "@/app/intelligence-state";
+
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,7 +32,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type {
   AnswerCitation,
-  CogneeRecallEntry,
   IntelligenceAnswer,
   ReasoningStep,
 } from "@/lib/knowledge-graph-types";
@@ -112,31 +118,8 @@ function StepCard({ step, index }: { step: ReasoningStep; index: number }) {
   );
 }
 
-function CogneeResultCard({ entry }: { entry: CogneeRecallEntry }) {
-  const text = entry.text ?? entry.content ?? "";
-
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{entry.kind ?? entry.source}</Badge>
-        {entry.search_type && <Badge variant="outline">{entry.search_type}</Badge>}
-        {entry.dataset_name && (
-          <span className="truncate text-xs text-muted-foreground">{entry.dataset_name}</span>
-        )}
-      </div>
-      {text && <p className="mt-2 line-clamp-4 text-xs leading-5 text-muted-foreground">{text}</p>}
-      {entry.metadata && Object.keys(entry.metadata).length > 0 && (
-        <pre className="mt-2 max-h-24 overflow-auto rounded border bg-muted/30 p-2 text-[11px] text-muted-foreground">
-          {JSON.stringify(entry.metadata, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-}
-
 function AnswerBlock({ answer }: { answer: IntelligenceAnswer }) {
   const graphHref = `/knowledge-graph?query=${encodeURIComponent(answer.id)}`;
-  const recall = answer.cognee?.recall ?? [];
 
   return (
     <div className="space-y-4">
@@ -170,44 +153,37 @@ function AnswerBlock({ answer }: { answer: IntelligenceAnswer }) {
         </div>
       </div>
 
-      {answer.citations.length > 0 && (
-        <section>
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Citations
-          </div>
-          <div className="space-y-2">
-            {answer.citations.map((citation) => (
-              <CitationCard key={citation.id} citation={citation} />
-            ))}
-          </div>
-        </section>
-      )}
+      <Accordion className="w-full">
+        {answer.citations.length > 0 && (
+          <AccordionItem value="citations" className="border-none">
+            <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+              Citations
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2 pt-1">
+                {answer.citations.map((citation) => (
+                  <CitationCard key={citation.id} citation={citation} />
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
 
-      {answer.reasoningSteps.length > 0 && (
-        <section>
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Evidence Path
-          </div>
-          <div className="space-y-2">
-            {answer.reasoningSteps.map((step, index) => (
-              <StepCard key={step.id} step={step} index={index} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {recall.length > 0 && (
-        <section>
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Cognee Recall
-          </div>
-          <div className="space-y-2">
-            {recall.map((entry, index) => (
-              <CogneeResultCard key={`${entry.kind ?? entry.source}-${index}`} entry={entry} />
-            ))}
-          </div>
-        </section>
-      )}
+        {answer.reasoningSteps.length > 0 && (
+          <AccordionItem value="evidence" className="border-none">
+            <AccordionTrigger className="py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground hover:no-underline">
+              Evidence Path
+            </AccordionTrigger>
+            <AccordionContent>
+              <div className="space-y-2 pt-1">
+                {answer.reasoningSteps.map((step, index) => (
+                  <StepCard key={step.id} step={step} index={index} />
+                ))}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+        )}
+      </Accordion>
     </div>
   );
 }

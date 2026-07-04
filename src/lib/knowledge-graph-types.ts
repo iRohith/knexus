@@ -42,6 +42,7 @@ export type CogneeRecallEntry = {
 
 export type CogneeQueryPayload = {
   queryId: string;
+  queryKey?: string;
   question: string;
   answer: string;
   responseTimeMs: number | null;

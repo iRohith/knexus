@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { GraphPanel } from "@/app/GraphPanel";
@@ -17,12 +18,30 @@ export function KnowledgeGraphWorkbench() {
     answers.find((answer) => answer.id === activeAnswerId) ||
     null;
 
+  useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+    };
+  }, []);
+
   return (
-    <GraphPanel
-      activeAnswer={activeAnswer}
-      fullPage
-      initialNodeId={nodeId}
-      initialEdgeId={edgeId}
-    />
+    <main className="h-[calc(100dvh-3.5rem)] min-h-0 w-full max-w-full overflow-hidden">
+      <GraphPanel
+        activeAnswer={activeAnswer}
+        fullPage
+        initialNodeId={nodeId}
+        initialEdgeId={edgeId}
+      />
+    </main>
   );
 }
