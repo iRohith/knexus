@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   AUTH_SESSION_COOKIE,
   AUTH_SESSION_MAX_AGE,
+  AUTH_REFRESH_TOKEN_COOKIE,
   AUTH_TOKEN_COOKIE,
   createAuthSession,
 } from "@/lib/auth-session";
@@ -31,10 +32,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const authData = (await authResponse.json()) as { accessToken?: string };
-  if (!authData.accessToken) {
+  const authData = (await authResponse.json()) as { accessToken?: string; refreshToken?: string };
+  if (!authData.accessToken || !authData.refreshToken) {
     return NextResponse.json(
-      { message: "Login response did not include a token." },
+      { message: "Login response did not include tokens." },
       { status: 502 },
     );
   }
@@ -50,6 +51,13 @@ export async function POST(request: Request) {
   const secure = process.env.NODE_ENV === "production";
 
   response.cookies.set(AUTH_TOKEN_COOKIE, authData.accessToken, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: "/",
+    maxAge: AUTH_SESSION_MAX_AGE,
+  });
+  response.cookies.set(AUTH_REFRESH_TOKEN_COOKIE, authData.refreshToken, {
     httpOnly: true,
     sameSite: "lax",
     secure,

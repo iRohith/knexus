@@ -214,7 +214,6 @@ export function AdminDashboard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(50);
   const eventsById = useActivityStore((state) => state.events);
   const focusedEventId = useActivityStore((state) => state.focusedEventId);
   const toggleEventSelected = useActivityStore((state) => state.toggleEventSelected);
@@ -253,14 +252,13 @@ export function AdminDashboard() {
     query,
   });
   const selectedEvents = getSelectedEvents(allEvents);
-  const selectedVisibleEvents = getSelectedEvents(filteredEvents);
-  const visibleEvents = filteredEvents.slice(0, visibleCount);
+  const selectedFilteredEvents = getSelectedEvents(filteredEvents);
 
   const liveEventCount = allEvents.filter((event) => event.metadata.seeded !== true).length;
   const uncheckedCount = allEvents.length - selectedEvents.length;
   const focusedEvent = (focusedEventId && eventsById[focusedEventId]) || filteredEvents[0] || null;
   const appCounts = getAppCounts(allEvents).filter((item) => item.count > 0);
-  const cogneePreview = buildCogneePreview(selectedVisibleEvents.slice(0, 8)).map((item) => ({
+  const cogneePreview = buildCogneePreview(selectedFilteredEvents.slice(0, 8)).map((item) => ({
     ...item,
     text: truncateText(item.text, 700),
   }));
@@ -281,7 +279,7 @@ export function AdminDashboard() {
     return byId;
   }, [allEvents]);
   const allVisibleChecked =
-    visibleEvents.length > 0 && visibleEvents.every((event) => event.selected);
+    filteredEvents.length > 0 && filteredEvents.every((event) => event.selected);
 
   const setFilter = (next: Record<string, string | null>) =>
     updateParams(router, pathname, searchParams, next);
@@ -405,14 +403,14 @@ export function AdminDashboard() {
               checked={allVisibleChecked}
               onCheckedChange={(checked) =>
                 toggleEventsSelected(
-                  visibleEvents.map((event) => event.id),
+                  filteredEvents.map((event) => event.id),
                   checked === true,
                 )
               }
             />
             <span className="text-sm text-muted-foreground">
-              Showing {formatCount(visibleEvents.length)} of {formatCount(filteredEvents.length)}{" "}
-              events · {formatCount(selectedVisibleEvents.length)} included
+              Showing {formatCount(filteredEvents.length)} events ·{" "}
+              {formatCount(selectedFilteredEvents.length)} included
             </span>
           </div>
           <ScrollArea className="min-h-0 flex-1">
@@ -425,7 +423,7 @@ export function AdminDashboard() {
               </div>
             ) : (
               <div className="divide-y pb-16">
-                {visibleEvents.map((event) => (
+                {filteredEvents.map((event) => (
                   <ActivityEventRow
                     key={event.id}
                     event={event}
@@ -434,13 +432,6 @@ export function AdminDashboard() {
                     onSelected={(selected) => toggleEventSelected(event.id, selected)}
                   />
                 ))}
-                {visibleCount < filteredEvents.length && (
-                  <div className="flex justify-center p-4">
-                    <Button variant="outline" onClick={() => setVisibleCount((c) => c + 50)}>
-                      Load More
-                    </Button>
-                  </div>
-                )}
               </div>
             )}
           </ScrollArea>
@@ -466,7 +457,7 @@ export function AdminDashboard() {
               <section>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="font-medium">Preview</div>
-                  <Badge variant="secondary">{selectedVisibleEvents.length} included</Badge>
+                  <Badge variant="secondary">{selectedFilteredEvents.length} included</Badge>
                 </div>
                 <pre className="max-h-[30rem] overflow-auto rounded-md border bg-muted/50 p-3 text-xs leading-5">
                   {JSON.stringify(cogneePreview, null, 2)}
