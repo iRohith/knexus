@@ -63,6 +63,10 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
         reasoningPath?: CogneeQueryPayload["raw"];
       };
 
+      if (backendResponse.answer === "Error loading mock data.") {
+        throw new Error("Backend failed to load mock data, triggering frontend fallback");
+      }
+
       // backendResponse is KnowledgeQueryResponse
       // map it to IntelligenceAnswer
 
@@ -100,31 +104,25 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
         const fallbackRes = await fetch("/cognee/answers.json");
         if (!fallbackRes.ok) throw new Error("Fallback static answers not found");
 
-        const fallbackAnswers = (await fallbackRes.json()) as {
-          question: string;
-          queryKey: string;
-          raw: CogneeQueryPayload;
-          answer?: string;
-          responseTimeMs?: number;
-          datasetName?: string;
-        }[];
+        const fallbackAnswers = (await fallbackRes.json()) as CogneeQueryPayload[];
 
         const matchedFallback =
           fallbackAnswers.find(
             (a) =>
               a.question.toLowerCase().includes(trimmed.toLowerCase()) ||
               trimmed.toLowerCase().includes(a.question.toLowerCase()) ||
-              trimmed.toLowerCase().includes(a.queryKey.toLowerCase().replace(/-/g, " ")),
+              (a.queryKey &&
+                trimmed.toLowerCase().includes(a.queryKey.toLowerCase().replace(/-/g, " "))),
           ) || fallbackAnswers[0];
 
         if (!matchedFallback) throw new Error("No fallback answers available");
 
-        const normalized = normalizeCogneeQueryPayload(matchedFallback.raw);
+        const normalized = normalizeCogneeQueryPayload(matchedFallback);
         const now = Date.now();
 
         const answer: IntelligenceAnswer = {
           id: `fallback-${now}`,
-          queryKey: matchedFallback.queryKey,
+          queryKey: matchedFallback.queryKey || "fallback",
           question: trimmed,
           answer: matchedFallback.answer || normalized.answer,
           createdAt: now,
@@ -133,8 +131,8 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
           citations: normalized.citations,
           cognee: {
             datasetName: matchedFallback.datasetName || "corp-os",
-            recall: matchedFallback.raw?.raw?.recall ?? [],
-            raw: matchedFallback.raw.raw,
+            recall: matchedFallback.raw?.recall ?? [],
+            raw: matchedFallback.raw,
           },
           graph: normalized.graph,
           highlightedNodeIds: normalized.highlightedNodeIds,

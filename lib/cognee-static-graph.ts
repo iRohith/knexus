@@ -36,7 +36,11 @@ export async function loadCogneeGraphSnapshot() {
     snapshotPromise = fetch("/api/v1/knowledge-graph", { cache: "no-store" })
       .then(async (response) => {
         if (response.ok) {
-          return response.json() as Promise<CogneeGraphSnapshot>;
+          const snapshot = (await response.json()) as CogneeGraphSnapshot;
+          if (!snapshot?.graphData?.nodes?.length) {
+            throw new Error("Live graph is empty");
+          }
+          return snapshot;
         }
         throw new Error("Live graph fetch failed");
       })
