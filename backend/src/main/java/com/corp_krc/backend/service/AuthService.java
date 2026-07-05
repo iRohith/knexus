@@ -51,7 +51,7 @@ public class AuthService {
             throw new DuplicateResourceException("Employee", "email", request.getEmail());
         }
 
-        String roleName = request.getRoleName() != null ? request.getRoleName() : "EMPLOYEE";
+        String roleName = "EMPLOYEE";
         Role role = roleRepository.findByName(roleName)
                 .orElseThrow(() -> new ResourceNotFoundException("Role", "name", roleName));
 

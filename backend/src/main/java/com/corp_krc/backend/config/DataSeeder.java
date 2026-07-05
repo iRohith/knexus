@@ -1,133 +1,100 @@
 package com.corp_krc.backend.config;
 
-import com.corp_krc.backend.repository.RoleRepository;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.corp_krc.backend.repository.EmployeeRepository;
-import com.corp_krc.backend.repository.IngestedDocumentRepository;
+import com.corp_krc.backend.repository.RoleRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.corp_krc.backend.entity.Role;
-import com.corp_krc.backend.dto.ingestion.JsonInboundPayload;
 import com.corp_krc.backend.entity.Employee;
-import com.corp_krc.backend.entity.IngestedDocument;
 import com.corp_krc.backend.entity.RoleName;
-import org.springframework.core.io.Resource;
 
-import java.io.InputStream;
-import java.time.Instant;
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class DataSeeder {
 
+    private static final List<SeedEmployee> SEED_EMPLOYEES = List.of(
+            new SeedEmployee("Ava Chen", "ava.chen@redwoodinference.com", RoleName.ADMIN),
+            new SeedEmployee("Ethan Park", "ethan.park@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Priya Natarajan", "priya.natarajan@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Sean Gallagher", "sean.gallagher@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Logan Wright", "logan.wright@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Rafael Mendes", "rafael.mendes@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Marcus Lin", "marcus.lin@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Jordan Blake", "jordan.blake@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Ben Carter", "ben.carter@redwoodinference.com", RoleName.EMPLOYEE),
+            new SeedEmployee("Mateo Alvarez", "mateo.alvarez@redwoodinference.com", RoleName.EMPLOYEE));
+
     private final EmployeeRepository employeeRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
-    private final IngestedDocumentRepository ingestedDocumentRepository;
-    private final ObjectMapper objectMapper;
+    @Value("${app.seed.user-password-template}")
+    private String userPasswordTemplate;
 
     @Bean
-    public CommandLineRunner seedAdminUser() {
+    public CommandLineRunner seedAuthUsers() {
         return args -> {
-            if (!employeeRepository.existsByEmail("admin@corp.com")) {
-                log.info("Seeding admin user...");
+            log.info("Seeding fixed auth users...");
 
-                // Find or create roles
-                Role adminRole = roleRepository.findByName(RoleName.ADMIN.name())
-                        .orElseGet(() -> roleRepository.save(Role.builder().name(RoleName.ADMIN.name()).build()));
+            Role adminRole = roleRepository.findByName(RoleName.ADMIN.name())
+                    .orElseGet(() -> roleRepository.save(Role.builder().name(RoleName.ADMIN.name()).build()));
+            Role employeeRole = roleRepository.findByName(RoleName.EMPLOYEE.name())
+                    .orElseGet(() -> roleRepository.save(Role.builder().name(RoleName.EMPLOYEE.name()).build()));
 
-                Role employeeRole = roleRepository.findByName(RoleName.EMPLOYEE.name())
-                        .orElseGet(() -> roleRepository.save(Role.builder().name(RoleName.EMPLOYEE.name()).build()));
+            Set<String> activeSeedEmails = new HashSet<>();
 
-                // Role viewerRole = roleRepository.findByName(RoleName.ROLE_VIEWER)
-                // .orElseGet(() ->
-                // roleRepository.save(Role.builder().name(RoleName.ROLE_VIEWER).build()));
+            for (SeedEmployee seedEmployee : SEED_EMPLOYEES) {
+                activeSeedEmails.add(seedEmployee.email());
+                Role role = seedEmployee.roleName() == RoleName.ADMIN ? adminRole : employeeRole;
+                String password = seedPasswordFor(seedEmployee);
 
-                // Create admin user
-                Employee admin = Employee.builder()
-                        .fullName("Super Admin")
-                        .email("admin@corp.com")
-                        .passwordHash(passwordEncoder.encode("admin@123"))
-                        .role(adminRole)
-                        .build();
+                Employee employee = employeeRepository.findByEmail(seedEmployee.email())
+                        .orElseGet(Employee::new);
+                employee.setFullName(seedEmployee.fullName());
+                employee.setEmail(seedEmployee.email());
+                employee.setPasswordHash(passwordEncoder.encode(password));
+                employee.setRole(role);
+                employee.setIsActive(true);
 
-                employeeRepository.save(admin);
-                log.info("Admin user seeded successfully with email: {}", admin.getEmail());
-            } else {
-                log.info("Admin user already exists, skipping seed");
+                employeeRepository.save(employee);
             }
+
+            List<Employee> employees = employeeRepository.findAll();
+            for (Employee employee : employees) {
+                if (activeSeedEmails.contains(employee.getEmail())) {
+                    continue;
+                }
+                if (Boolean.TRUE.equals(employee.getIsActive())) {
+                    employee.setIsActive(false);
+                    employeeRepository.save(employee);
+                }
+            }
+
+            log.info("Seeded {} auth users. Ava Chen is the only ADMIN.", SEED_EMPLOYEES.size());
         };
     }
 
-    @Bean
-    public CommandLineRunner seedCorporateData() {
-        return args -> {
-            log.info("Starting dynamic corporate knowledge base extraction window...");
+    private record SeedEmployee(String fullName, String email, RoleName roleName) {
 
-            PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        private String firstName() {
+            return fullName.split(" ")[0];
+        }
+    }
 
-            try {
-                Resource[] resources = resolver.getResources("classpath:corp-os-data/**/*.json");
-                log.info("Identified {} data source payload vectors for ingestion processing.", resources.length);
-
-                List<IngestedDocument> batchToSave = new ArrayList<>();
-
-                for (Resource resource : resources) {
-                    log.info("Processing ingestion data grid target: [{}]", resource.getFilename());
-
-                    try (InputStream inputStream = resource.getInputStream()) {
-                        List<JsonInboundPayload> payloads = objectMapper.readValue(
-                                inputStream,
-                                new TypeReference<List<JsonInboundPayload>>() {
-                                });
-
-                        for (JsonInboundPayload payload : payloads) {
-                            if (!ingestedDocumentRepository.existsById(payload.getId())) {
-                                IngestedDocument document = IngestedDocument.builder()
-                                        .id(payload.getId())
-                                        .sourceApp(payload.getSourceApp())
-                                        .actorId(payload.getActorId())
-                                        .occurredAt(Instant.ofEpochMilli(payload.getOccurredAt()))
-                                        .type(payload.getType())
-                                        .action(payload.getAction())
-                                        .title(payload.getTitle())
-                                        .body(payload.getBody())
-                                        .sourceEntityId(payload.getSourceEntityId())
-                                        .sourceEntityType(payload.getSourceEntityType())
-                                        .sourceUrl(payload.getSourceUrl())
-                                        .build();
-
-                                batchToSave.add(document);
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.error("Failed to extract data mapping sequence from file: {}", resource.getFilename(), e);
-                    }
-                }
-
-                if (!batchToSave.isEmpty()) {
-                    ingestedDocumentRepository.saveAll(batchToSave);
-                    log.info("Ingestion completed successfully. Saved {} new records to Postgres.", batchToSave.size());
-                } else {
-                    log.info("No new ingestion signatures found. Knowledge baseline is up to date.");
-                }
-
-            } catch (Exception e) {
-                log.error("Fatal system trap encountered during seeder execution routing", e);
-            }
-        };
+    private String seedPasswordFor(SeedEmployee seedEmployee) {
+        return userPasswordTemplate
+                .replace("{first}", seedEmployee.firstName().toLowerCase())
+                .replace("{email}", seedEmployee.email());
     }
 }

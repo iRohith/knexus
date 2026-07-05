@@ -46,8 +46,5 @@ server:
     context-path: /api/v1
 
 app:
-  admin:
-    email: admin@corp.com        # default
-    password: admin@123           # default — override in production!
-    full-name: Super Admin           # default
-
+  seed:
+    user-password-template: ${SEED_USER_PASSWORD_TEMPLATE:{first}@123}
