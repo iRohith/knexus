@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -65,6 +66,7 @@ export function FirefliesApp() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(searchParams.get("meeting"));
   const activeUser = useActiveUser()!;
   const meetings = useFirefliesStore((state) => state.meetings);
   const loadCorpusPage = useFirefliesStore((state) => state.loadCorpusPage);
@@ -336,6 +338,7 @@ function MeetingList({
     <div className="overflow-hidden rounded-md border border-[#d9e2ec] bg-white dark:border-[#273241] dark:bg-[#171c26]">
       {meetings.map((meeting) => (
         <button
+          id={meeting.id}
           key={meeting.id}
           className={cn(
             "w-full cursor-pointer border-b border-[#d9e2ec] p-3 text-left last:border-b-0 hover:bg-[#f8fafc] dark:border-[#273241] dark:hover:bg-[#252b3a]",

@@ -421,6 +421,7 @@ export function SlackApp({
             ) : (
               surfaceMessages.map((message) => (
                 <div
+                  id={message.id}
                   key={message.id}
                   className={
                     query

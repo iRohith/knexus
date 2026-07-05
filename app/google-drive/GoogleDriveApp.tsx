@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -74,6 +75,7 @@ export function GoogleDriveApp({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(searchParams.get("file") || searchParams.get("folder"));
   const activeUser = useActiveUser()!;
   const items = useDriveStore((state) => state.items);
   const loadCorpusPage = useDriveStore((state) => state.loadCorpusPage);
@@ -221,7 +223,7 @@ export function GoogleDriveApp({
                             My Drive
                           </button>
                           {path.map((item) => (
-                            <span key={item.id} className="flex items-center gap-1">
+                            <span id={item.id} key={item.id} className="flex items-center gap-1">
                               <span>/</span>
                               <button
                                 className="hover:underline cursor-pointer truncate max-w-30"
@@ -449,6 +451,7 @@ function DriveItems({
       <div className="overflow-hidden rounded-md border border-[#dadce0] bg-white dark:border-[#303134] dark:bg-[#1b1c1f]">
         {items.map((item) => (
           <ItemRow
+            id={item.id}
             key={item.id}
             item={item}
             activeUserId={activeUserId}
@@ -464,6 +467,7 @@ function DriveItems({
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
         <div
+          id={item.id}
           key={item.id}
           className="cursor-pointer rounded-xl border border-[#dadce0] bg-white p-3 text-left hover:border-[#1a73e8] dark:border-[#303134] dark:bg-[#1b1c1f]"
           onClick={() => onOpen(item)}
@@ -492,6 +496,7 @@ function DriveItems({
 }
 
 function ItemRow({
+  id,
   item,
   activeUserId,
   onOpen,
@@ -499,6 +504,7 @@ function ItemRow({
   onTrash,
   onRestore,
 }: {
+  id?: string;
   item: DriveItem;
   activeUserId: string;
   onOpen: (item: DriveItem) => void;
@@ -508,6 +514,7 @@ function ItemRow({
 }) {
   return (
     <div
+      id={id}
       className="grid w-full cursor-pointer grid-cols-[1fr_auto] gap-3 border-b border-[#dadce0] p-3 text-left last:border-b-0 hover:bg-[#f8fafd] md:grid-cols-[1fr_8rem_8rem_8rem_auto] dark:border-[#303134] dark:hover:bg-[#303134]"
       onClick={() => onOpen(item)}
       role="button"

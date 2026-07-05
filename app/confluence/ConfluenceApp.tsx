@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -46,6 +47,7 @@ export function ConfluenceApp({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(searchParams.get("page"));
   const activeUser = useActiveUser()!;
   const spaces = useConfluenceStore((state) => state.spaces);
   const pages = useConfluenceStore((state) => state.pages);
@@ -326,6 +328,7 @@ function Sidebar({
           <div className="mt-4 mb-2 px-2 text-xs font-medium text-muted-foreground">Pages</div>
           {pages.map((page) => (
             <button
+              id={page.id}
               key={page.id}
               className={cn(
                 "flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left hover:bg-[#f1f2f4] dark:hover:bg-[#222b35]",

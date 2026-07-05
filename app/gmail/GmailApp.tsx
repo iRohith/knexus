@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -63,7 +64,6 @@ import {
 } from "@/app/gmail/mail-state";
 import { appUsers, userToRecipient } from "@/lib/users";
 import { useActiveUser } from "@/lib/stores/user-store";
-
 type ListItem =
   | {
       type: "conversation";
@@ -236,6 +236,7 @@ export function GmailApp({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(searchParams.get("id"));
   const activeUser = useActiveUser();
   const currentUser = activeUser ?? appUsers[0];
   const activeRecipient = userToRecipient(currentUser);
@@ -1136,6 +1137,7 @@ function ConversationDetail({
           <div className="mt-6 space-y-5">
             {messages.map((message) => (
               <MessageCard
+                id={message.id}
                 key={message.id}
                 message={message}
                 conversation={conversation}
@@ -1154,6 +1156,7 @@ function ConversationDetail({
 }
 
 function MessageCard({
+  id,
   message,
   conversation,
   onStar,
@@ -1162,6 +1165,7 @@ function MessageCard({
   onReplyAll,
   onForward,
 }: {
+  id?: string;
   message: Message;
   conversation: Conversation;
   onStar: () => void;
@@ -1171,7 +1175,7 @@ function MessageCard({
   onForward: () => void;
 }) {
   return (
-    <section className="rounded-xl border bg-background p-4 shadow-xs">
+    <section id={id} className="rounded-xl border bg-background p-4 shadow-xs">
       <div className="flex gap-3">
         <Avatar>
           <AvatarFallback>{getInitials(message.from.name)}</AvatarFallback>
