@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Clock3,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
@@ -29,7 +30,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { appUsers } from "@/lib/users";
@@ -119,6 +120,8 @@ export function AdminHistory() {
   const processingRunsById = useActivityStore((state) => state.processingRuns);
   const loadProcessingRuns = useActivityStore((state) => state.loadProcessingRuns);
   const hydrateProcessingRunItems = useActivityStore((state) => state.hydrateProcessingRunItems);
+  const retryProcessingRun = useActivityStore((state) => state.retryProcessingRun);
+  const retryProcessingRunItem = useActivityStore((state) => state.retryProcessingRunItem);
   const runs = getProcessingRuns(processingRunsById);
 
   const loadCorpusPage = useActivityStore((state) => state.loadCorpusPage);
@@ -192,6 +195,20 @@ export function AdminHistory() {
                             <Badge className={statusTone(run.status)}>
                               {statusLabel(run.status)}
                             </Badge>
+                            {run.status === "failed" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void retryProcessingRun(run.id);
+                                }}
+                              >
+                                <RefreshCw className="mr-1 size-3" />
+                                Retry Failed
+                              </Button>
+                            )}
                           </span>
                           <span className="mt-1 block text-xs font-normal text-muted-foreground">
                             {formatCount(run.eventIds.length)} events · Started{" "}
@@ -209,25 +226,63 @@ export function AdminHistory() {
                     </AccordionTrigger>
                     <AccordionContent className="p-0">
                       <div className="divide-y border-t">
-                        {run.items.map((item) => (
-                          <Link
-                            key={item.id}
-                            className="grid min-w-0 gap-3 p-4 no-underline hover:bg-muted/60 hover:no-underline lg:grid-cols-[14rem_minmax(0,1fr)_8rem]"
-                            href={item.sourceUrl}
-                          >
-                            <AppMarker app={item.sourceApp} />
-                            <span className="min-w-0">
-                              <span className="block truncate font-medium">{item.title}</span>
-                              <span className="mt-0.5 block truncate text-sm text-muted-foreground">
-                                {item.action} · {userName(item.actorId)}
-                              </span>
-                            </span>
-                            <span className="flex items-center gap-1 text-sm font-medium text-primary">
-                              Open
-                              <ExternalLink className="size-3" />
-                            </span>
-                          </Link>
-                        ))}
+                        {run.items.map((item) => {
+                          const job = run.backendJobs?.[item.id];
+                          const isFailed = job?.status === "FAILED";
+                          const isProcessing = job?.status === "IN_PROGRESS";
+
+                          return (
+                            <div
+                              key={item.id}
+                              className="grid min-w-0 gap-3 p-4 hover:bg-muted/60 lg:grid-cols-[14rem_minmax(0,1fr)_14rem]"
+                            >
+                              <Link
+                                href={item.sourceUrl}
+                                className="flex items-center no-underline"
+                              >
+                                <AppMarker app={item.sourceApp} />
+                              </Link>
+                              <Link
+                                href={item.sourceUrl}
+                                className="flex min-w-0 flex-col justify-center no-underline"
+                              >
+                                <span className="block truncate font-medium">{item.title}</span>
+                                <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+                                  {item.action} · {userName(item.actorId)}
+                                </span>
+                              </Link>
+                              <div className="flex items-center justify-end gap-3">
+                                {isFailed && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8"
+                                    onClick={() => void retryProcessingRunItem(run.id, item.id)}
+                                  >
+                                    <RefreshCw className="mr-1.5 size-3" />
+                                    Retry
+                                  </Button>
+                                )}
+                                {isProcessing && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="h-8 bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300"
+                                  >
+                                    <LoaderCircle className="mr-1.5 size-3 animate-spin" />
+                                    Retrying...
+                                  </Badge>
+                                )}
+                                <Link
+                                  href={item.sourceUrl}
+                                  className="flex items-center gap-1 text-sm font-medium text-primary no-underline hover:underline"
+                                >
+                                  Open
+                                  <ExternalLink className="size-3" />
+                                </Link>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </AccordionContent>
                   </AccordionItem>

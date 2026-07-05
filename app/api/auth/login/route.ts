@@ -7,7 +7,7 @@ import {
   AUTH_TOKEN_COOKIE,
   createAuthSession,
 } from "@/lib/auth-session";
-import { BACKEND_URL } from "@/lib/api-client";
+import { BACKEND_URL } from "@/lib/backend-proxy";
 import { appUsers } from "@/lib/users";
 
 export async function POST(request: Request) {
