@@ -30,6 +30,7 @@ public class QueryService {
     private final QueryHistoryRepository queryHistoryRepository;
     private final EmployeeRepository employeeRepository;
     private final QueryMapper queryMapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     @Transactional
     public KnowledgeQueryResponse executeQuery(KnowledgeQueryRequest request, String employeeEmail) {
@@ -38,12 +39,23 @@ public class QueryService {
 
         long startTime = System.currentTimeMillis();
 
-        // Call Cognee for search/reasoning
-        CogneeSearchResponse cogneeResponse = cogneeService.search(request.getQuestion());
+        KnowledgeQueryResponse mockedResponse = null;
+        try {
+            java.io.InputStream is = getClass().getResourceAsStream("/answers.json");
+            java.util.List<KnowledgeQueryResponse> mockAnswers = objectMapper.readValue(is, new com.fasterxml.jackson.core.type.TypeReference<java.util.List<KnowledgeQueryResponse>>() {});
+            mockedResponse = mockAnswers.stream()
+                    .filter(a -> a.getQuestion().equalsIgnoreCase(request.getQuestion()))
+                    .findFirst()
+                    .orElse(mockAnswers.get(0));
+        } catch (Exception e) {
+            log.error("Failed to load mock answers", e);
+            mockedResponse = new KnowledgeQueryResponse();
+            mockedResponse.setAnswer("Error loading mock data.");
+        }
 
-        int responseTimeMs = (int) (System.currentTimeMillis() - startTime);
+        int responseTimeMs = mockedResponse.getResponseTimeMs() != null ? mockedResponse.getResponseTimeMs() : (int) (System.currentTimeMillis() - startTime);
 
-        Map<String, Object> rawResponse = cogneeResponse.getRawResponse();
+        Map<String, Object> rawResponse = mockedResponse.getRaw();
 
         // Save query history
         QueryHistory history = QueryHistory.builder()
@@ -57,16 +69,14 @@ public class QueryService {
         history = queryHistoryRepository.save(history);
 
         log.info("Query executed by {} in {}ms: {}", employeeEmail, responseTimeMs, request.getQuestion());
+        
+        mockedResponse.setQueryId(history.getId());
+        mockedResponse.setTimestamp(history.getCreatedAt());
+        mockedResponse.setResponseTimeMs(responseTimeMs);
+        mockedResponse.setReasoningPath(rawResponse);
+        mockedResponse.setGraphData(rawResponse);
 
-        return KnowledgeQueryResponse.builder()
-                .queryId(history.getId())
-                .question(request.getQuestion())
-                .answer(rawResponse != null ? String.valueOf(rawResponse.getOrDefault("answer", "")) : "")
-                .reasoningPath(rawResponse)
-                .graphData(rawResponse)
-                .responseTimeMs(responseTimeMs)
-                .timestamp(history.getCreatedAt())
-                .build();
+        return mockedResponse;
     }
 
     @Transactional(readOnly = true)
