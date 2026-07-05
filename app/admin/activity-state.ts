@@ -276,6 +276,8 @@ type ActivityState = {
   setFocusedEvent: (eventId: string | null) => void;
   clearSessionEvents: () => void;
   resetDefaults: () => void;
+  retryProcessingRun: (runId: string) => Promise<void>;
+  retryProcessingRunItem: (runId: string, itemId: string) => Promise<void>;
 };
 
 export const sourceApps: SourceApp[] = [
@@ -467,12 +469,23 @@ function buildSeedProcessingRuns(eventsById: Record<string, ActivityEvent>) {
 
     runs[runId] = {
       id: runId,
-      status: "completed",
+      status: "failed",
       eventIds: batch.map((event) => event.id),
       items: [],
       createdAt,
       updatedAt: createdAt + 5000,
-      completedAt: createdAt + 5000,
+      backendJobs: Object.fromEntries(
+        batch.map((event) => [
+          event.id,
+          {
+            id: `fake-job-${event.id}`,
+            eventId: event.id,
+            documentId: event.id,
+            status: "FAILED",
+            createdAt: new Date(createdAt).toISOString(),
+          },
+        ]),
+      ),
     };
   }
 
@@ -763,14 +776,14 @@ export const useActivityStore = create<ActivityState>((set) => ({
       .map((eventId) => snapshot[eventId])
       .filter(Boolean);
     const items = selectedEvents.map((event) => ({
-        id: event.id,
-        sourceApp: event.sourceApp,
-        actorId: event.actorId,
-        occurredAt: event.occurredAt,
-        action: event.action,
-        title: event.title,
-        sourceUrl: event.sourceUrl,
-      }));
+      id: event.id,
+      sourceApp: event.sourceApp,
+      actorId: event.actorId,
+      occurredAt: event.occurredAt,
+      action: event.action,
+      title: event.title,
+      sourceUrl: event.sourceUrl,
+    }));
 
     if (items.length === 0) return "";
 
@@ -955,6 +968,73 @@ export const useActivityStore = create<ActivityState>((set) => ({
       focusedEventId: null,
     })),
   resetDefaults: () => set({ events: buildDefaults(), focusedEventId: null, processingRuns: {} }),
+  retryProcessingRun: async (runId) => {
+    const run = useActivityStore.getState().processingRuns[runId];
+    if (!run) return;
+
+    const failedItemIds = run.items
+      .filter((item) => {
+        const job = run.backendJobs?.[item.id];
+        return job?.status === "FAILED";
+      })
+      .map((item) => item.id);
+
+    if (failedItemIds.length === 0) return;
+
+    await Promise.all(
+      failedItemIds.map((itemId) =>
+        useActivityStore.getState().retryProcessingRunItem(runId, itemId),
+      ),
+    );
+  },
+  retryProcessingRunItem: async (runId, itemId) => {
+    const run = useActivityStore.getState().processingRuns[runId];
+    if (!run) return;
+    const item = run.items.find((i) => i.id === itemId);
+    if (!item) return;
+    const job = run.backendJobs?.[itemId];
+    if (!job) return;
+
+    useActivityStore.getState().applyBackendJobs(runId, [{ ...job, status: "IN_PROGRESS" }]);
+
+    try {
+      if (job.id.startsWith("fake-job-")) {
+        const res = await fetch("/api/indexing/jobs/trigger-bulk-ingestion", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify([
+            {
+              id: item.id,
+              batchId: runId,
+              sourceApp: item.sourceApp,
+              actorId: item.actorId,
+              occurredAt: new Date(item.occurredAt).toISOString(),
+              type: "document",
+              action: item.action,
+              title: item.title,
+              body: item.title,
+              sourceEntityId: item.id,
+              sourceEntityType: "document",
+              sourceUrl: item.sourceUrl,
+            },
+          ]),
+        });
+        if (!res.ok) throw new Error("Failed to trigger bulk ingestion");
+        const data = (await res.json()) as ActivityIndexingResponse;
+        const newJob = data.data?.[0];
+        if (newJob) {
+          useActivityStore.getState().applyBackendJobs(runId, [{ ...newJob, eventId: item.id }]);
+        }
+      } else {
+        const res = await fetch(`/api/indexing/jobs/${job.id}/retry`, { method: "POST" });
+        if (!res.ok) throw new Error("Failed to retry");
+      }
+      startProcessingRunPolling(runId);
+    } catch (err) {
+      console.error("Retry failed:", err);
+      useActivityStore.getState().applyBackendJobs(runId, [{ ...job, status: "FAILED" }]);
+    }
+  },
 }));
 
 export function getActivityEvents(events: Record<string, ActivityEvent>) {
@@ -1056,7 +1136,9 @@ function buildBackendProcessingRuns(jobs: BackendIndexingJob[]) {
       })),
       backendJobs: Object.fromEntries(batch.map((job) => [job.id, job])),
       createdAt,
-      updatedAt: Math.max(...batch.map((job) => Date.parse(job.completedAt ?? job.startedAt ?? job.createdAt ?? ""))),
+      updatedAt: Math.max(
+        ...batch.map((job) => Date.parse(job.completedAt ?? job.startedAt ?? job.createdAt ?? "")),
+      ),
       completedAt: batch.every((job) => job.status === "COMPLETED")
         ? Math.max(...batch.map((job) => Date.parse(job.completedAt ?? job.createdAt ?? "")))
         : undefined,

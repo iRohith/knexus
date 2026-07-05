@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/api-client";
+export const BACKEND_URL = process.env.API_URL ?? "http://localhost:8080";
 import {
   AUTH_REFRESH_TOKEN_COOKIE,
   AUTH_SESSION_MAX_AGE,
@@ -18,9 +18,7 @@ function jwtExpiresSoon(token: string, skewSeconds = 60) {
 
   try {
     const normalized = payload.replaceAll("-", "+").replaceAll("_", "/");
-    const json = JSON.parse(
-      Buffer.from(normalized, "base64").toString("utf8"),
-    ) as { exp?: number };
+    const json = JSON.parse(Buffer.from(normalized, "base64").toString("utf8")) as { exp?: number };
     if (!json.exp) return true;
     return json.exp * 1000 <= Date.now() + skewSeconds * 1000;
   } catch {

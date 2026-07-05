@@ -1,3 +1,5 @@
-export default function Homeage() {
-  return <>Home</>;
+import { IntelligencePortal } from "@/app/IntelligencePortal";
+
+export default function Home() {
+  return <IntelligencePortal />;
 }
