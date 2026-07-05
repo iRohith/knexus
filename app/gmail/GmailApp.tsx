@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -348,7 +347,16 @@ export function GmailApp({
         b.type === "draft" ? Number(b.id.replace(/\D/g, "")) || 0 : b.conversation.lastMessageAt;
       return bTime - aTime;
     });
-  }, [currentUser.email, conversations, drafts, folder, label, messages, query]);
+  }, [
+    activeRecipient.email,
+    currentUser.email,
+    conversations,
+    drafts,
+    folder,
+    label,
+    messages,
+    query,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(listItems.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -379,7 +387,8 @@ export function GmailApp({
   const rawSelectedMessages =
     rawSelectedConversation?.messageIds.map((id) => messages[id]).filter(Boolean) ?? [];
   const selectedConversation =
-    rawSelectedConversation && userParticipatesInConversation(rawSelectedMessages, currentUser.email)
+    rawSelectedConversation &&
+    userParticipatesInConversation(rawSelectedMessages, currentUser.email)
       ? rawSelectedConversation
       : null;
   const selectedMessages = selectedConversation ? rawSelectedMessages : [];
@@ -645,7 +654,6 @@ export function GmailApp({
               type: "SEND_EMAIL",
               payload: { draftId: currentDraft.id, authorId: currentUser.id, ...currentDraft },
             });
-
           }}
         />
       )}

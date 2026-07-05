@@ -4,8 +4,8 @@ import { AlertOctagon, Archive, Clock, Inbox, Pencil, Send, Star, Tag, Trash2 } 
 
 import { appUsers, userToRecipient } from "@/lib/users";
 import { useUserStore } from "@/lib/stores/user-store";
-import { loadSeedRoutePage, loadSeedRouteManifest, type SeedCard } from "@/lib/seed-data";
-import { usePatchStore, type AppPatch } from "@/lib/stores/patch-store";
+import { loadSeedRoutePage, type SeedCard } from "@/lib/seed-data";
+import { usePatchStore, getGlobalPatchesForApp, type AppPatch } from "@/lib/stores/patch-store";
 
 export type Folder =
   "inbox" | "sent" | "drafts" | "spam" | "trash" | "starred" | "snoozed" | "important" | "all";
@@ -133,43 +133,9 @@ export const folders: MailFolderItem[] = [
   { key: "all", label: "All Mail", icon: Archive },
 ];
 
-const contacts: Recipient[] = appUsers.map(userToRecipient);
-
-function externalRecipientFromCorpus(body: string, fallbackSeed: string): Recipient {
-  const matches = Array.from(body.matchAll(/([^<>\n;,]+?)\s*<([^<>\s]+@[^<>\s]+)>/g));
-  const external = matches.find((match) => !match[2].includes("redwood"));
-  if (external) {
-    return {
-      name: external[1].trim().replace(/^From:\s*/i, "") || external[2].split("@")[0],
-      email: external[2].trim(),
-    };
-  }
-  const domain = fallbackSeed
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return {
-    name: "Customer Contact",
-    email: `contact@${domain || "customer"}.example`,
-  };
-}
-
 function firstRecipientFromValue(value: unknown, fallback: Recipient): Recipient {
   if (typeof value !== "string" || !value.trim()) return fallback;
   return parseRecipients(value)[0] ?? fallback;
-}
-
-function recipientsFromValue(value: unknown): Recipient[] {
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => (typeof item === "string" ? parseRecipients(item) : []));
-  }
-  return typeof value === "string" ? parseRecipients(value) : [];
-}
-
-function timestampFromEmailDate(value: unknown, fallback: number) {
-  if (typeof value !== "string" || !value.trim()) return fallback;
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? timestamp : fallback;
 }
 
 export function parseRecipients(value: string): Recipient[] {
@@ -556,19 +522,6 @@ export type GmailMailState = MailSnapshot & {
 
 const initialSnapshot = buildInitialSnapshot();
 
-let patchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-function triggerPatchSync() {
-  if (patchDebounceTimer) clearTimeout(patchDebounceTimer);
-  patchDebounceTimer = setTimeout(async () => {
-    const store = usePatchStore.getState();
-    const batches = await store.flushPatchBatches();
-    if (batches.length > 0) {
-      console.log("[Stub] Syncing", batches.length, "batches to Java backend...");
-      store.markBatchesFlushed(batches.map((b) => b.id));
-    }
-  }, 1000);
-}
-
 function recordPatch(
   op: AppPatch["op"],
   scope: string,
@@ -583,7 +536,83 @@ function recordPatch(
     actorId: useUserStore.getState().activeUserId || "unknown",
     payload,
   });
-  triggerPatchSync();
+}
+
+function applyPatch(state: GmailMailState, patch: AppPatch) {
+  // Replay patches on top of seed data
+  if (patch.scope === "gmail.draft") {
+    if (patch.op === "create") {
+      const draft = patch.payload as Draft;
+      state.drafts[draft.id] = draft;
+    } else if (patch.op === "update") {
+      if (state.drafts[patch.targetId]) {
+        state.drafts[patch.targetId] = { ...state.drafts[patch.targetId], ...patch.payload };
+      }
+    } else if (patch.op === "delete") {
+      delete state.drafts[patch.targetId];
+    }
+  } else if (patch.scope === "gmail.sent" && patch.op === "create") {
+    const draft = state.drafts[patch.targetId];
+    if (draft) {
+      const conversationId = draft.conversationId ?? `conv-new-${patch.targetId}`;
+      const subject = draft.subject || "(no subject)";
+      const message = createMessageFromDraft({
+        id: `msg-${patch.targetId}`,
+        conversationId,
+        draft,
+        subject,
+        body: draft.body || "No message body",
+      });
+      state.messages[message.id] = message;
+      if (state.conversations[conversationId]) {
+        state.conversations[conversationId] = recomputeConversation(
+          {
+            ...state.conversations[conversationId],
+            subject: state.conversations[conversationId].subject || subject,
+            messageIds: [...state.conversations[conversationId].messageIds, message.id],
+            systemLabels: withUnique(state.conversations[conversationId].systemLabels, "sent"),
+          },
+          state.messages,
+        );
+      } else {
+        state.conversations[conversationId] = makeConversationFromMessages({
+          id: conversationId,
+          subject,
+          messages: [message],
+          systemLabels: ["sent"],
+          userLabels: [],
+          starred: false,
+          important: false,
+        });
+      }
+      delete state.drafts[patch.targetId];
+    }
+  } else if (patch.scope === "gmail.conversation" && patch.op === "update") {
+    const conversation = state.conversations[patch.targetId];
+    if (conversation) {
+      if (patch.payload.toggleStar) conversation.starred = !conversation.starred;
+      if (patch.payload.toggleImportant) conversation.important = !conversation.important;
+      if (patch.payload.systemLabels)
+        conversation.systemLabels = patch.payload.systemLabels as SystemLabel[];
+      if (patch.payload.snoozedUntil !== undefined)
+        conversation.snoozedUntil = patch.payload.snoozedUntil as string | null;
+    }
+  } else if (patch.scope === "gmail.labels" && patch.op === "update") {
+    const conversation = state.conversations[patch.targetId];
+    if (conversation) {
+      if (patch.payload.add) {
+        conversation.userLabels = Array.from(
+          new Set([...conversation.userLabels, ...(patch.payload.add as string[])]),
+        );
+      }
+      if (patch.payload.remove) {
+        conversation.userLabels = without(conversation.userLabels, patch.payload.remove as string);
+      }
+    }
+  } else if (patch.scope === "gmail.messages" && patch.op === "update") {
+    const message = state.messages[patch.targetId];
+    if (message) message.read = patch.payload.read as boolean;
+  }
 }
 
 export const useGmailMailStore = create<GmailMailState>((set, get) => ({
@@ -596,10 +625,15 @@ export const useGmailMailStore = create<GmailMailState>((set, get) => ({
     if (!activeUserId) return;
     const cards = await loadSeedRoutePage(`users/${activeUserId}/gmail`, page);
     const snapshot = buildInitialSnapshot(cards);
+
+    const stateWithPatches = cloneSnapshot(snapshot) as GmailMailState;
+    const patches = getGlobalPatchesForApp("gmail");
+    patches.forEach((patch) => applyPatch(stateWithPatches, patch));
+
     set((state) => ({
-      conversations: { ...state.conversations, ...snapshot.conversations },
-      messages: { ...state.messages, ...snapshot.messages },
-      drafts: { ...state.drafts, ...snapshot.drafts },
+      conversations: { ...state.conversations, ...stateWithPatches.conversations },
+      messages: { ...state.messages, ...stateWithPatches.messages },
+      drafts: { ...state.drafts, ...stateWithPatches.drafts },
     }));
   },
 
@@ -895,3 +929,18 @@ export const useGmailMailStore = create<GmailMailState>((set, get) => ({
 
   clearUndo: () => set({ undoState: null }),
 }));
+
+usePatchStore.subscribe((state, prevState) => {
+  if (state.batches === prevState.batches) return;
+  const newBatches = state.batches.filter((b) => !prevState.batches.includes(b));
+  if (newBatches.length === 0) return;
+
+  const newPatches = newBatches.flatMap((b) => b.patches).filter((p) => p.app === "gmail");
+  if (newPatches.length === 0) return;
+
+  useGmailMailStore.setState((draftState) => {
+    const nextState = cloneSnapshot(draftState) as GmailMailState;
+    newPatches.forEach((patch) => applyPatch(nextState, patch));
+    return nextState;
+  });
+});
