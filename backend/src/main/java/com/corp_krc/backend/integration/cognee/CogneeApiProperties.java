@@ -13,6 +13,7 @@ public class CogneeApiProperties {
 
     private String baseUrl;
     private String apiKey;
+    private boolean enabled = false;
     private int connectTimeoutMs = 5000;
     private int readTimeoutMs = 60000;
 }

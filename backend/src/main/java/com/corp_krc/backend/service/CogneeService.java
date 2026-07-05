@@ -3,6 +3,7 @@ package com.corp_krc.backend.service;
 import com.corp_krc.backend.entity.Document;
 import com.corp_krc.backend.integration.cognee.CogneeAddRequest;
 import com.corp_krc.backend.integration.cognee.CogneeClient;
+import com.corp_krc.backend.integration.cognee.CogneeApiProperties;
 import com.corp_krc.backend.integration.cognee.CogneeSearchRequest;
 import com.corp_krc.backend.integration.cognee.CogneeSearchResponse;
 import com.corp_krc.backend.integration.cognee.CogneeStatusResponse;
@@ -16,12 +17,18 @@ import org.springframework.stereotype.Service;
 public class CogneeService {
 
     private final CogneeClient cogneeClient;
+    private final CogneeApiProperties cogneeApiProperties;
 
     private static final int MAX_STATUS_POLLS = 30;
     private static final long POLL_INTERVAL_MS = 2000;
 
     public void indexDocument(Document document) {
         log.info("Starting Cognee indexing for document: {}", document.getId());
+
+        if (!cogneeApiProperties.isEnabled()) {
+            log.info("Cognee is disabled; skipping external indexing for document: {}", document.getId());
+            return;
+        }
 
         // Step 1: Add document to Cognee
         CogneeAddRequest addRequest = CogneeAddRequest.builder()

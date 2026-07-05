@@ -28,6 +28,7 @@ jwt:
 
 # --- Cognee ---
 cognee:
+  enabled: ${COGNEE_ENABLED:false}
   base-url: https://rohith--cognee-api-serve.modal.run
   api-key: 2ad18e01c703848f01ba8176adb2887990a86b499f0eec43f845053e55693058
   connect-timeout-ms: 5000

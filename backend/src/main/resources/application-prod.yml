@@ -28,6 +28,7 @@ jwt:
 
 # --- Cognee ---
 cognee:
+  enabled: ${COGNEE_ENABLED:true}
   base-url: ${COGNEE_BASE_URL}
   api-key: ${COGNEE_API_KEY}
   connect-timeout-ms: 5000

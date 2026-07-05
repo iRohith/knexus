@@ -19,10 +19,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 
@@ -90,21 +92,31 @@ public class IndexingController {
     }
 
     @PostMapping("/jobs/trigger-bulk-ingestion")
-    public ResponseEntity<Map<String, String>> triggerBulkIndexing() {
-        // 1. Fetch all raw ingested documents that haven't been queued yet
-        List<IngestedDocument> rawDocs = ingestedDocumentRepository.findAll();
+    public ResponseEntity<Map<String, Object>> triggerBulkIndexing(
+            @RequestBody(required = false) List<IngestedDocument> selectedDocs) {
+        List<IngestedDocument> rawDocs;
+        if (selectedDocs != null && !selectedDocs.isEmpty()) {
+            rawDocs = ingestedDocumentRepository.saveAll(selectedDocs);
+        } else {
+            // 1. Fetch all raw ingested documents that haven't been queued yet
+            rawDocs = ingestedDocumentRepository.findAll();
+        }
 
         log.info("Creating indexing job blueprints for {} raw documents...", rawDocs.size());
+
+        List<IndexingJobStatusResponse> jobs = new ArrayList<>();
 
         // 2. Loop through and register them into the indexing service pipeline
         for (IngestedDocument doc : rawDocs) {
             // This invokes your background indexing framework handler logic
-            indexingService.migrateIngestedToPipeline(doc);
+            IndexingJob job = indexingService.migrateIngestedToPipeline(doc);
+            jobs.add(toStatusResponse(job));
         }
 
         return ResponseEntity.accepted().body(Map.of(
                 "message", "Successfully initialized indexing pipeline for " + rawDocs.size() + " documents.",
-                "status", "PENDING"));
+                "status", "PENDING",
+                "data", jobs));
     }
 
     private IndexingJobStatusResponse toStatusResponse(IndexingJob job) {
@@ -112,6 +124,9 @@ public class IndexingController {
                 .id(job.getId())
                 .documentId(job.getDocument().getId())
                 .documentTitle(job.getDocument().getTitle())
+                .sourceSystem(job.getDocument().getSourceSystem())
+                .sourceUrl(job.getDocument().getFilePath())
+                .processingBatchId(job.getDocument().getCogneeDatasetId())
                 .status(job.getStatus())
                 .retryCount(job.getRetryCount())
                 .errorMessage(job.getErrorMessage())

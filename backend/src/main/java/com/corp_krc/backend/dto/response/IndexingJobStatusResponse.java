@@ -18,6 +18,9 @@ public class IndexingJobStatusResponse {
     private UUID id;
     private UUID documentId;
     private String documentTitle;
+    private String sourceSystem;
+    private String sourceUrl;
+    private String processingBatchId;
     private IndexingStatus status;
     private Integer retryCount;
     private String errorMessage;
