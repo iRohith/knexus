@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -66,6 +67,7 @@ export function GitHubApp({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(searchParams.get("issue") || searchParams.get("pr"));
   const activeUser = useActiveUser()!;
   const repos = useGitHubStore((state) => state.repos);
   const issues = useGitHubStore((state) => state.issues);
@@ -695,6 +697,7 @@ function IssueList({
       </div>
       {issues.map((issue) => (
         <button
+          id={issue.id}
           key={issue.id}
           className="flex w-full cursor-pointer gap-3 border-b border-[#d0d7de] p-4 text-left last:border-b-0 hover:bg-[#f6f8fa] dark:border-[#30363d] dark:hover:bg-[#161b22]"
           onClick={() => onOpen(issue.id)}

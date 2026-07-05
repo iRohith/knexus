@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -88,6 +89,9 @@ export function HubSpotApp({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(
+    searchParams.get("contact") || searchParams.get("deal") || searchParams.get("company"),
+  );
   const activeUser = useActiveUser()!;
   const companies = useHubSpotStore((state) => state.companies);
   const contacts = useHubSpotStore((state) => state.contacts);

@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -99,6 +100,7 @@ export function LinearApp({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(searchParams.get("issue"));
   const activeUser = useActiveUser();
   const teams = useLinearStore((state) => state.teams);
   const projects = useLinearStore((state) => state.projects);
@@ -573,6 +575,7 @@ function IssueList({
     <div className="overflow-hidden rounded-md border border-[#e2e4ea] bg-white dark:border-[#2a2d36] dark:bg-[#171922]">
       {issues.map((issue) => (
         <div
+          id={issue.id}
           key={issue.id}
           role="button"
           tabIndex={0}
@@ -639,6 +642,7 @@ function Board({
             <div className="space-y-2 p-2">
               {columnIssues.map((issue) => (
                 <div
+                  id={issue.id}
                   key={issue.id}
                   role="button"
                   tabIndex={0}
@@ -730,6 +734,7 @@ function Roadmap({
             <div className="mt-4 space-y-2">
               {projectIssues.map((issue) => (
                 <button
+                  id={issue.id}
                   key={issue.id}
                   className="flex w-full cursor-pointer items-center gap-3 rounded-md border border-[#e2e4ea] p-2 text-left hover:bg-[#f7f8fb] dark:border-[#2a2d36] dark:hover:bg-[#22242d]"
                   onClick={() => onOpen(issue.id)}

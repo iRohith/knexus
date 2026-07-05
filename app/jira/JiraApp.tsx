@@ -1,4 +1,5 @@
 "use client";
+import { useScrollToSelected } from "@/hooks/use-scroll-to-selected";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -98,6 +99,7 @@ export function JiraApp() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  useScrollToSelected(searchParams.get("issue"));
   const activeUser = useActiveUser();
   const projects = useJiraStore((state) => state.projects);
   const issues = useJiraStore((state) => state.issues);
@@ -587,7 +589,13 @@ function BoardView({
             </div>
             <div className="space-y-2 p-2">
               {columnIssues.map((issue) => (
-                <IssueCard key={issue.id} issue={issue} onOpen={onOpen} onStatus={onStatus} />
+                <IssueCard
+                  id={issue.id}
+                  key={issue.id}
+                  issue={issue}
+                  onOpen={onOpen}
+                  onStatus={onStatus}
+                />
               ))}
             </div>
           </section>
@@ -598,16 +606,19 @@ function BoardView({
 }
 
 function IssueCard({
+  id,
   issue,
   onOpen,
   onStatus,
 }: {
+  id?: string;
   issue: JiraIssue;
   onOpen: (id: string) => void;
   onStatus: (id: string, status: JiraStatus) => void;
 }) {
   return (
     <div
+      id={id}
       role="button"
       tabIndex={0}
       data-testid="issue-card"
@@ -676,6 +687,7 @@ function BacklogView({
     <div className="overflow-hidden rounded-md border border-[#dfe1e6] bg-white dark:border-[#2c333a] dark:bg-[#161a1d]">
       {issues.map((issue) => (
         <div
+          id={issue.id}
           key={issue.id}
           role="button"
           tabIndex={0}

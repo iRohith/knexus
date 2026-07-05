@@ -20,7 +20,7 @@ function localRedirectUrl(request: NextRequest, pathname: string) {
   return url;
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const activeUser = await verifyAuthSession(request.cookies.get(AUTH_SESSION_COOKIE)?.value);
   const isLoginPage = pathname === "/login";
@@ -45,4 +45,5 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  runtime: "experimental-edge",
 };

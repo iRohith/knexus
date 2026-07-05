@@ -28,7 +28,7 @@ export type SeedCard = {
   peopleIds: string[];
   links: string[];
   tags: string[];
-  source?: any;
+  source?: Record<string, unknown>;
 };
 
 export type SeedEmployee = {
