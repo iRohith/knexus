@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { appUsers } from "@/lib/users";
-import { loadSeedRoutePage, type SeedCard } from "@/lib/seed-data";
+import { SeedCard, loadAppCorpus } from "@/lib/seed-data";
 import { usePatchStore, getGlobalPatchesForApp, type AppPatch } from "@/lib/stores/patch-store";
 import { useUserStore } from "@/lib/stores/user-store";
 
@@ -54,7 +54,7 @@ export type SlackSnapshot = {
 };
 
 export type SlackState = SlackSnapshot & {
-  loadCorpusPage: (page?: number) => Promise<number>;
+  loadCorpusPage: () => Promise<number>;
   sendMessage: (input: {
     surfaceType: "channel" | "dm";
     surfaceId: string;
@@ -238,42 +238,11 @@ const initialSnapshot = buildInitialSnapshot();
 export const useSlackStore = create<SlackState>()((set, get) => ({
   ...initialSnapshot,
 
-  loadCorpusPage: async (page: number = 1): Promise<number> => {
+  loadCorpusPage: async () => {
     const activeUserId = useUserStore.getState().activeUserId;
     if (!activeUserId) return 0;
-    const channelNames = [
-      "all-hands",
-      "announcements",
-      "architecture",
-      "customer-success",
-      "devex",
-      "docs",
-      "eng",
-      "eng-infra",
-      "eng-ml",
-      "eng-oncall",
-      "eng-platform",
-      "eng-releases",
-      "eng-runtime",
-      "eng-security",
-      "eng-sre",
-      "finance",
-      "incidents",
-      "marketing",
-      "new-hires",
-      "partnerships",
-      "people-ops",
-      "product",
-      "sales",
-      "support",
-    ];
-    const cards = (
-      await Promise.all(
-        channelNames.map((channel) =>
-          loadSeedRoutePage(`apps/slack/channels/${channel}`, page).catch(() => []),
-        ),
-      )
-    ).flat();
+
+    const cards = await loadAppCorpus("slack", activeUserId);
     const snapshot = buildInitialSnapshot(cards);
 
     const stateWithPatches = JSON.parse(JSON.stringify(snapshot)) as SlackSnapshot;

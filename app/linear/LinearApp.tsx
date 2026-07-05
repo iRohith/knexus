@@ -123,7 +123,7 @@ export function LinearApp({
   const previousUserId = useRef(activeUser?.id);
 
   useEffect(() => {
-    void loadCorpusPage(1);
+    void loadCorpusPage();
   }, [loadCorpusPage]);
 
   const accessibleTeams = useMemo(

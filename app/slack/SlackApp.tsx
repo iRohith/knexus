@@ -121,7 +121,7 @@ export function SlackApp({
         if (cancelled) return;
         setCorpusPageCount(app?.pageCount ?? 0);
         setCorpusEventCount(app?.count ?? 0);
-        const count = await loadCorpusPage(1);
+        const count = await loadCorpusPage();
         if (cancelled) return;
         if (count > 0) setCorpusPage(1);
       } finally {
@@ -140,7 +140,7 @@ export function SlackApp({
     const nextPage = corpusPage + 1;
     setCorpusLoading(true);
     try {
-      const count = await loadCorpusPage(nextPage);
+      const count = await loadCorpusPage();
       if (count > 0) setCorpusPage(nextPage);
     } finally {
       setCorpusLoading(false);

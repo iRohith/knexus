@@ -3,7 +3,7 @@
 import { create } from "zustand";
 
 import { appUsers } from "@/lib/users";
-import { loadSeedRoutePage, type SeedCard } from "@/lib/seed-data";
+import { SeedCard, loadAppCorpus } from "@/lib/seed-data";
 import { usePatchStore, getGlobalPatchesForApp, type AppPatch } from "@/lib/stores/patch-store";
 import { useUserStore } from "@/lib/stores/user-store";
 
@@ -63,7 +63,7 @@ export type JiraSnapshot = {
 };
 
 export type JiraState = JiraSnapshot & {
-  loadCorpusPage: (page?: number) => Promise<void>;
+  loadCorpusPage: () => Promise<void>;
   createIssue: (input: {
     projectId: string;
     actorId: string;
@@ -121,16 +121,16 @@ function userName(id: string) {
 function buildInitialSnapshot(cards: SeedCard[] = []): JiraSnapshot {
   const memberIds = appUsers.map((u) => u.id);
   const projects: Record<string, JiraProject> = {
-    support: {
-      id: "support",
+    "customer-support": {
+      id: "customer-support",
       key: "SUP",
       name: "Customer Support",
       description: "Customer-facing Redwood Inference support work.",
       leadId: memberIds[0],
       memberIds,
     },
-    internal: {
-      id: "internal",
+    "internal-support": {
+      id: "internal-support",
       key: "INT",
       name: "Internal Support",
       description: "Internal platform, compliance, and operational support.",
@@ -142,7 +142,7 @@ function buildInitialSnapshot(cards: SeedCard[] = []): JiraSnapshot {
 
   if (cards.length > 0) {
     cards.forEach((card, index) => {
-      const projectId = index % 3 === 0 ? "internal" : "support";
+      const projectId = index % 3 === 0 ? "internal-support" : "customer-support";
       const keyPrefix = projects[projectId].key;
       const number = index + 1;
       const id = card.id;
@@ -285,16 +285,10 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useJiraStore = create<JiraState>((set) => ({
   ...initialSnapshot,
-  loadCorpusPage: async (page: number = 1): Promise<void> => {
+  loadCorpusPage: async () => {
     const activeUserId = useUserStore.getState().activeUserId;
     if (!activeUserId) return;
-
-    const cards = (
-      await Promise.all([
-        loadSeedRoutePage(`apps/jira/projects/customer-support`, page).catch(() => []),
-        loadSeedRoutePage(`apps/jira/projects/internal-support`, page).catch(() => []),
-      ])
-    ).flat();
+    const cards = await loadAppCorpus("jira", activeUserId);
     const snapshot = buildInitialSnapshot(cards);
 
     const stateWithPatches = JSON.parse(JSON.stringify(snapshot)) as JiraSnapshot;

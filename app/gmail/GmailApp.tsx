@@ -267,7 +267,7 @@ export function GmailApp({
   const showUndo = useUndoToast();
 
   useEffect(() => {
-    void loadCorpusPage(Math.max(1, Math.ceil(page / 5)));
+    void loadCorpusPage();
   }, [loadCorpusPage, page]);
 
   function updateUrl(next: Record<string, string | number | null>) {
