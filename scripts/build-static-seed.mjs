@@ -46,14 +46,10 @@ function slugify(value) {
     .replace(/^-|-$/g, "");
 }
 
-function cleanText(value, limit = TEXT_LIMIT) {
-  const text = String(value || "")
+function cleanText(value) {
+  return String(value || "")
     .replace(/\\n/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
     .trim();
-
-  return text.length > limit ? `${text.slice(0, limit - 3)}...` : text;
 }
 
 function asArray(value) {
@@ -224,8 +220,8 @@ function commonCard({
   return {
     id,
     app,
-    title: cleanText(title, 180),
-    preview: cleanText(text, 320),
+    title: cleanText(title),
+    preview: cleanText(text),
     text: cleanText(text),
     occurredAt,
     entityType,
@@ -253,7 +249,6 @@ function commonCard({
       source.project,
       source.repo,
       source.channel,
-      source.space,
     ]
       .filter((item) => typeof item === "string" && item.trim())
       .slice(0, 18),
@@ -583,6 +578,9 @@ async function main() {
 
     for await (const filePath of walkJsonFiles(appDir)) {
       readCount += 1;
+      if (readCount % 50 === 0) {
+        process.stdout.write(`\rProcessing files... ${readCount}`);
+      }
       const source = await readJson(filePath);
       const normalized = normalizeByApp(sourceApp, source, filePath, people);
       if (!normalized) continue;
