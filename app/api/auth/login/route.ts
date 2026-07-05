@@ -26,6 +26,13 @@ export async function POST(request: Request) {
   });
 
   if (!authResponse.ok) {
+    const errorText = await authResponse.text();
+    console.error("Backend fetch failed:", {
+      status: authResponse.status,
+      headers: Object.fromEntries(authResponse.headers.entries()),
+      body: errorText,
+      url: `${BACKEND_URL}/api/v1/auth/login`,
+    });
     return NextResponse.json(
       { message: "Invalid password or failed to login." },
       { status: authResponse.status },
