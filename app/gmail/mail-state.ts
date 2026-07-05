@@ -4,7 +4,7 @@ import { AlertOctagon, Archive, Clock, Inbox, Pencil, Send, Star, Tag, Trash2 } 
 
 import { appUsers, userToRecipient } from "@/lib/users";
 import { useUserStore } from "@/lib/stores/user-store";
-import { loadSeedRoutePage, type SeedCard } from "@/lib/seed-data";
+import { loadAppCorpus, type SeedCard } from "@/lib/seed-data";
 import { usePatchStore, getGlobalPatchesForApp, type AppPatch } from "@/lib/stores/patch-store";
 
 export type Folder =
@@ -495,7 +495,7 @@ function makeConversationDraftSubject(mode: DraftMode, subject: string) {
 export type GmailMailState = MailSnapshot & {
   labels: string[];
   undoState: UndoState;
-  loadCorpusPage: (page?: number) => Promise<void>;
+  loadCorpusPage: () => Promise<void>;
   createDraft: (input?: Partial<Draft>) => string;
   updateDraft: (id: string, patch: Partial<Omit<Draft, "id">>) => void;
   discardDraft: (id: string) => void;
@@ -620,10 +620,10 @@ export const useGmailMailStore = create<GmailMailState>((set, get) => ({
   labels: [...userLabels, "Follow up", "Important"],
   undoState: null,
 
-  loadCorpusPage: async (page = 1) => {
+  loadCorpusPage: async () => {
     const activeUserId = useUserStore.getState().activeUserId;
     if (!activeUserId) return;
-    const cards = await loadSeedRoutePage(`users/${activeUserId}/gmail`, page);
+    const cards = await loadAppCorpus("gmail", activeUserId);
     const snapshot = buildInitialSnapshot(cards);
 
     const stateWithPatches = cloneSnapshot(snapshot) as GmailMailState;

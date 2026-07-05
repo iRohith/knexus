@@ -219,6 +219,7 @@ function commonCard({
   return {
     id,
     app,
+    source,
     title: cleanText(title),
     preview: cleanText(text),
     text: cleanText(text),
@@ -275,8 +276,8 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "gmail", "threads"),
         peopleIds: userIds,
       }),
-      userRoutes: userIds.length > 1 ? userIds.map((id) => route("users", id, "gmail")) : [],
-      appRoutes: [route("apps", "gmail", "threads")],
+      userRoutes: userIds.map((id) => route("users", id, "gmail")),
+      appRoutes: [],
     };
   }
 
@@ -297,8 +298,8 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "slack", "channels", channel),
         peopleIds: participantIds,
       }),
-      userRoutes: participantIds.map((id) => route("users", id, "slack")),
-      appRoutes: [route("apps", "slack", "channels", channel)],
+      userRoutes: channel === "dm" ? participantIds.map((id) => route("users", id, "slack")) : [],
+      appRoutes: channel === "dm" ? [] : [route("apps", "slack", "channels", channel)],
     };
   }
 
@@ -370,9 +371,7 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "github", "repos", repo),
         peopleIds: [authorId, ...reviewerIds].filter(Boolean),
       }),
-      userRoutes: [...new Set([authorId, ...reviewerIds].filter(Boolean))].map((id) =>
-        route("users", id, "github"),
-      ),
+      userRoutes: [],
       appRoutes: [route("apps", "github", "repos", repo)],
     };
   }
@@ -397,9 +396,7 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "linear", "teams", team),
         peopleIds: [creatorId, assigneeId].filter(Boolean),
       }),
-      userRoutes: [...new Set([creatorId, assigneeId].filter(Boolean))].map((id) =>
-        route("users", id, "linear"),
-      ),
+      userRoutes: [],
       appRoutes: [route("apps", "linear", "teams", team)],
     };
   }
@@ -424,9 +421,7 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "jira", "projects", project),
         peopleIds: [reporterId, assigneeId].filter(Boolean),
       }),
-      userRoutes: [...new Set([reporterId, assigneeId].filter(Boolean))].map((id) =>
-        route("users", id, "jira"),
-      ),
+      userRoutes: [],
       appRoutes: [route("apps", "jira", "projects", project)],
     };
   }
@@ -451,7 +446,7 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "hubspot", "stages", stage),
         peopleIds: ownerIds,
       }),
-      userRoutes: ownerIds.map((id) => route("users", id, "hubspot")),
+      userRoutes: [],
       appRoutes: [route("apps", "hubspot", "stages", stage)],
     };
   }
@@ -475,7 +470,7 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "fireflies", "accounts", account),
         peopleIds: userIds,
       }),
-      userRoutes: userIds.map((id) => route("users", id, "fireflies")),
+      userRoutes: [],
       appRoutes: [route("apps", "fireflies", "accounts", account)],
     };
   }

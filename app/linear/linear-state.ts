@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-import { loadSeedRoutePage, type SeedCard } from "@/lib/seed-data";
+import { SeedCard, loadAppCorpus } from "@/lib/seed-data";
 import { usePatchStore, getGlobalPatchesForApp, type AppPatch } from "@/lib/stores/patch-store";
 import { useUserStore } from "@/lib/stores/user-store";
 import { appUsers } from "@/lib/users";
@@ -71,7 +71,7 @@ export type LinearSnapshot = {
 };
 
 export type LinearState = LinearSnapshot & {
-  loadCorpusPage: (page?: number) => Promise<void>;
+  loadCorpusPage: () => Promise<void>;
   createIssue: (input: {
     teamId: string;
     actorId: string;
@@ -128,8 +128,8 @@ function note(authorId: string, body: string, timestamp: number): LinearComment 
 function buildInitialSnapshot(cards: SeedCard[] = []): LinearSnapshot {
   const memberIds = appUsers.map((u) => u.id);
   const teams: Record<string, LinearTeam> = {
-    product: {
-      id: "product",
+    "product-management": {
+      id: "product-management",
       key: "PROD",
       name: "Product",
       description: "Knexus Product Management, planning, and roadmapping.",
@@ -177,7 +177,7 @@ function buildInitialSnapshot(cards: SeedCard[] = []): LinearSnapshot {
         ? "design"
         : text.includes("runtime")
           ? "engineering"
-          : "product";
+          : "product-management";
       const team = teams[teamId];
       const number = index + 1;
       const assigneeId = card.peopleIds[0] ?? memberIds[0];
@@ -312,17 +312,10 @@ const initialSnapshot = buildInitialSnapshot();
 
 export const useLinearStore = create<LinearState>((set) => ({
   ...initialSnapshot,
-  loadCorpusPage: async (page: number = 1): Promise<void> => {
+  loadCorpusPage: async () => {
     const activeUserId = useUserStore.getState().activeUserId;
     if (!activeUserId) return;
-
-    const cards = (
-      await Promise.all([
-        loadSeedRoutePage(`apps/linear/teams/engineering`, page).catch(() => []),
-        loadSeedRoutePage(`apps/linear/teams/design`, page).catch(() => []),
-        loadSeedRoutePage(`apps/linear/teams/product-management`, page).catch(() => []),
-      ])
-    ).flat();
+    const cards = await loadAppCorpus("linear", activeUserId);
     const snapshot = buildInitialSnapshot(cards);
 
     const stateWithPatches = JSON.parse(JSON.stringify(snapshot)) as LinearSnapshot;

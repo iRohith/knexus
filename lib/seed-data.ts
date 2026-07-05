@@ -28,6 +28,7 @@ export type SeedCard = {
   peopleIds: string[];
   links: string[];
   tags: string[];
+  source?: any;
 };
 
 export type SeedEmployee = {
@@ -189,6 +190,21 @@ export async function loadSeedRoute(route: string, limit = 200) {
   return results.flat().slice(0, limit);
 }
 
-export async function loadUserAppPage(userId: string, app: SeedApp, page = 1) {
-  return loadSeedRoutePage(userAppRoute(userId, app), page);
+export async function loadAppCorpus(app: SeedApp, userId: string): Promise<SeedCard[]> {
+  const manifest = await loadSeedManifest();
+  const routes = Object.keys(manifest.routes || {});
+
+  const appRoutes = routes.filter((r) => r.startsWith(`apps/${app}/`));
+  const userRoute = `users/${userId}/${app}`;
+
+  const routesToFetch = [...appRoutes];
+  if (routes.includes(userRoute)) routesToFetch.push(userRoute);
+
+  const results = await Promise.all(
+    routesToFetch.map(async (route) => {
+      return cachedJson<SeedCard[]>(`${seedBasePath}/${route}/page-0001.json`).catch(() => []);
+    }),
+  );
+
+  return results.flat();
 }
