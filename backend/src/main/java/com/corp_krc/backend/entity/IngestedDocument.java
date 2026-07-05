@@ -35,6 +35,9 @@ public class IngestedDocument {
     @Column(name = "action")
     private String action;
 
+    @Column(name = "batch_id")
+    private String batchId;
+
     @Column(name = "title", length = 1000)
     private String title;
 

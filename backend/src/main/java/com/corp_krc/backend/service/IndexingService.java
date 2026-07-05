@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @Slf4j
@@ -148,11 +149,11 @@ public class IndexingService {
     }
 
     @Transactional
-    public void migrateIngestedToPipeline(IngestedDocument rawDoc) {
+    public IndexingJob migrateIngestedToPipeline(IngestedDocument rawDoc) {
         log.info("Converting raw ingested document link to core pipeline: {}", rawDoc.getId());
 
         // 1. Generate clean deterministic UUID matching baseline architecture
-        UUID documentUuid = UUID.nameUUIDFromBytes(rawDoc.getId().getBytes());
+        UUID documentUuid = UUID.nameUUIDFromBytes(rawDoc.getId().getBytes(StandardCharsets.UTF_8));
 
         // 2. Build and save core Document entity via standard instantiation
         if (!documentRepository.existsById(documentUuid)) {
@@ -177,8 +178,8 @@ public class IndexingService {
             entityManager
                     .createNativeQuery(
                             """
-                                    INSERT INTO documents (id, title, raw_content, source_system, document_type, uploaded_by, cognee_dataset_id, created_at, updated_at)
-                                    VALUES (:id, :title, :content, :source, :type, :user, :datasetId, :created, :updated)
+                                    INSERT INTO documents (id, title, raw_content, source_system, document_type, uploaded_by, cognee_dataset_id, file_path, created_at, updated_at)
+                                    VALUES (:id, :title, :content, :source, :type, :user, :datasetId, :filePath, :created, :updated)
                                     """)
                     .setParameter("id", documentUuid)
                     .setParameter("title", rawDoc.getTitle())
@@ -186,7 +187,11 @@ public class IndexingService {
                     .setParameter("source", rawDoc.getSourceApp())
                     .setParameter("type", mappedType.name()) // Save enum as string representation
                     .setParameter("user", admin.getId()) // Link via foreign key ID
-                    .setParameter("datasetId", "corpKRC-bulk-ingestion")
+                    .setParameter("datasetId",
+                            rawDoc.getBatchId() == null || rawDoc.getBatchId().isBlank()
+                                    ? "corpKRC-bulk-ingestion"
+                                    : rawDoc.getBatchId())
+                    .setParameter("filePath", rawDoc.getSourceUrl())
                     .setParameter("created", Instant.now())
                     .setParameter("updated", Instant.now())
                     .executeUpdate();
@@ -228,5 +233,8 @@ public class IndexingService {
 
             log.info("Document successfully translated and published to Kafka cluster with UUID: {}", documentUuid);
         }
+
+        return indexingJobRepository.findByDocumentId(documentUuid)
+                .orElseThrow(() -> new ResourceNotFoundException("IndexingJob", "documentId", documentUuid));
     }
 }
