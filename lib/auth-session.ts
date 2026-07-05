@@ -1,6 +1,7 @@
 import { appUsers } from "@/lib/users";
 
 export const AUTH_TOKEN_COOKIE = "auth-token";
+export const AUTH_REFRESH_TOKEN_COOKIE = "auth-refresh-token";
 export const AUTH_SESSION_COOKIE = "auth-session";
 export const AUTH_SESSION_MAX_AGE = 60 * 60 * 24;
 

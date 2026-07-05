@@ -220,6 +220,33 @@ export type ProcessingRun = {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
+  backendJobs?: Record<string, BackendIndexingJob>;
+};
+
+type BackendIndexingJobStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
+
+type BackendIndexingJob = {
+  eventId?: string;
+  id: string;
+  documentId: string;
+  documentTitle?: string;
+  sourceSystem?: string;
+  sourceUrl?: string;
+  processingBatchId?: string;
+  status: BackendIndexingJobStatus;
+  createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  retryCount?: number;
+  errorMessage?: string;
+};
+
+type ActivityIndexingResponse = {
+  data: BackendIndexingJob[];
+};
+
+type BackendJobsPage = {
+  data: BackendIndexingJob[];
 };
 
 export type ActivityEventInput = Omit<ActivityEvent, "id" | "occurredAt" | "selected"> & {
@@ -233,6 +260,7 @@ type ActivityState = {
   focusedEventId: string | null;
   processingRuns: Record<string, ProcessingRun>;
   loadProcessingRuns: () => Promise<void>;
+  syncProcessingRuns: () => Promise<void>;
   loadCorpusPage: () => Promise<void>;
   loadCorpusAppPage: (app: SourceApp) => Promise<void>;
   syncGlobalEvents: (app?: SourceApp) => Promise<void>;
@@ -241,6 +269,9 @@ type ActivityState = {
   toggleEventSelected: (eventId: string, selected: boolean) => void;
   toggleEventsSelected: (eventIds: string[], selected: boolean) => void;
   processEvents: (eventIds: string[]) => Promise<string>;
+  pollProcessingRun: (runId: string) => Promise<void>;
+  applyBackendJobs: (runId: string, jobs: BackendIndexingJob[]) => void;
+  hydrateProcessingRunItems: (runId: string) => void;
   updateProcessingRun: (runId: string, status: ProcessingRunStatus) => void;
   setFocusedEvent: (eventId: string | null) => void;
   clearSessionEvents: () => void;
@@ -366,6 +397,10 @@ function buildDefaults() {
 }
 
 const initialCorpusEvents = buildDefaults();
+const SEED_HISTORY_BATCH_SIZE = 200;
+const ACTIVE_SEED_EVENT_COUNT = 100;
+const seedRunItems = new Map<string, ProcessingRunItem[]>();
+const submittedEventKeys = new Set<string>();
 
 function markCorpusEvent(event: ActivityEvent): ActivityEvent {
   return {
@@ -381,6 +416,126 @@ function markCorpusEvent(event: ActivityEvent): ActivityEvent {
 
 function mergeCorpusEvents(events: ActivityEvent[]) {
   return Object.fromEntries(events.map((event) => [event.id, markCorpusEvent(event)]));
+}
+
+function eventSubmissionKeys(event: ActivityEvent) {
+  return [event.id, event.sourceUrl].filter((key): key is string => Boolean(key));
+}
+
+function rememberSubmittedEvents(events: ActivityEvent[]) {
+  events.forEach((event) => {
+    eventSubmissionKeys(event).forEach((key) => submittedEventKeys.add(key));
+  });
+}
+
+function rememberSubmittedJobs(jobs: BackendIndexingJob[]) {
+  jobs.forEach((job) => {
+    [job.eventId, job.sourceUrl]
+      .filter((key): key is string => Boolean(key))
+      .forEach((key) => submittedEventKeys.add(key));
+  });
+}
+
+function filterUnsubmittedEvents(eventsById: Record<string, ActivityEvent>) {
+  return Object.fromEntries(
+    Object.entries(eventsById).filter(([, event]) =>
+      eventSubmissionKeys(event).every((key) => !submittedEventKeys.has(key)),
+    ),
+  );
+}
+
+function buildSeedProcessingRuns(eventsById: Record<string, ActivityEvent>) {
+  const events = Object.values(eventsById).sort((a, b) => a.occurredAt - b.occurredAt);
+  const runs: Record<string, ProcessingRun> = {};
+
+  for (let index = 0; index < events.length; index += SEED_HISTORY_BATCH_SIZE) {
+    const batch = events.slice(index, index + SEED_HISTORY_BATCH_SIZE);
+    if (batch.length === 0) continue;
+    const runIndex = index / SEED_HISTORY_BATCH_SIZE;
+    const createdAt = batch[batch.length - 1].occurredAt + 1000;
+    const runId = `seed-run-${runIndex}`;
+    const items = batch.map((event) => ({
+      id: event.id,
+      sourceApp: event.sourceApp,
+      actorId: event.actorId,
+      occurredAt: event.occurredAt,
+      action: event.action,
+      title: event.title,
+      sourceUrl: event.sourceUrl,
+    }));
+    seedRunItems.set(runId, items);
+
+    runs[runId] = {
+      id: runId,
+      status: "completed",
+      eventIds: batch.map((event) => event.id),
+      items: [],
+      createdAt,
+      updatedAt: createdAt + 5000,
+      completedAt: createdAt + 5000,
+    };
+  }
+
+  return runs;
+}
+
+function splitSeedCorpus(eventsById: Record<string, ActivityEvent>) {
+  const events = Object.values(eventsById).sort((a, b) => a.occurredAt - b.occurredAt);
+  const activeEvents = events.slice(-ACTIVE_SEED_EVENT_COUNT);
+  const processedEvents = events.slice(0, Math.max(0, events.length - ACTIVE_SEED_EVENT_COUNT));
+
+  return {
+    activeEvents: filterUnsubmittedEvents(
+      Object.fromEntries(activeEvents.map((event) => [event.id, event])),
+    ),
+    seedRuns: buildSeedProcessingRuns(
+      Object.fromEntries(processedEvents.map((event) => [event.id, event])),
+    ),
+  };
+}
+
+const processingPollTimers = new Map<string, ReturnType<typeof setInterval>>();
+let globalProcessingPollTimer: ReturnType<typeof setInterval> | null = null;
+let globalProcessingPollInFlight = false;
+
+function runStatusFromJobs(jobs: BackendIndexingJob[]): ProcessingRunStatus {
+  if (jobs.length === 0) return "queued";
+  if (jobs.some((job) => job.status === "FAILED")) return "failed";
+  if (jobs.every((job) => job.status === "COMPLETED")) return "completed";
+  if (jobs.some((job) => job.status === "IN_PROGRESS")) return "processing";
+  return "queued";
+}
+
+function startProcessingRunPolling(runId: string) {
+  if (typeof window === "undefined" || processingPollTimers.has(runId)) return;
+
+  void useActivityStore.getState().pollProcessingRun(runId);
+  const timer = setInterval(() => {
+    const run = useActivityStore.getState().processingRuns[runId];
+    if (!run || run.status === "completed" || run.status === "failed") {
+      clearInterval(timer);
+      processingPollTimers.delete(runId);
+      return;
+    }
+    void useActivityStore.getState().pollProcessingRun(runId);
+  }, 5000);
+
+  processingPollTimers.set(runId, timer);
+}
+
+function stopProcessingRunPolling(runId: string) {
+  const timer = processingPollTimers.get(runId);
+  if (!timer) return;
+  clearInterval(timer);
+  processingPollTimers.delete(runId);
+}
+
+function startGlobalProcessingPolling() {
+  if (typeof window === "undefined" || globalProcessingPollTimer) return;
+  void useActivityStore.getState().syncProcessingRuns();
+  globalProcessingPollTimer = setInterval(() => {
+    void useActivityStore.getState().syncProcessingRuns();
+  }, 2000);
 }
 
 function searchableMetadataText(metadata: JsonRecord) {
@@ -406,16 +561,37 @@ export const useActivityStore = create<ActivityState>((set) => ({
   focusedEventId: null,
   processingRuns: {},
   loadProcessingRuns: async () => {
+    await useActivityStore.getState().syncProcessingRuns();
+  },
+  syncProcessingRuns: async () => {
+    if (globalProcessingPollInFlight) return;
+    globalProcessingPollInFlight = true;
     try {
-      const res = await fetch("/corp-os-data/processing_runs.json");
-      if (res.ok) {
-        const runs = (await res.json()) as Record<string, ProcessingRun>;
-        set((state) => ({
-          processingRuns: { ...state.processingRuns, ...runs },
-        }));
-      }
-    } catch {
-      // Ignored if file doesn't exist
+      const res = await fetch("/api/indexing/jobs?size=500&page=0", { cache: "no-store" });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const page = (await res.json()) as BackendJobsPage;
+      const jobs = page.data ?? [];
+      rememberSubmittedJobs(jobs);
+      const backendRuns = buildBackendProcessingRuns(jobs);
+
+      set((state) => {
+        const events = Object.fromEntries(
+          Object.entries(state.events).filter(([, event]) =>
+            eventSubmissionKeys(event).every((key) => !submittedEventKeys.has(key)),
+          ),
+        );
+        const seedRuns = Object.fromEntries(
+          Object.entries(state.processingRuns).filter(([id]) => id.startsWith("seed-run-")),
+        );
+        return {
+          events,
+          processingRuns: { ...seedRuns, ...backendRuns },
+        };
+      });
+    } catch (error) {
+      console.error("Failed to sync processing runs:", error);
+    } finally {
+      globalProcessingPollInFlight = false;
     }
   },
   loadCorpusPage: async () => {
@@ -424,33 +600,37 @@ export const useActivityStore = create<ActivityState>((set) => ({
         return await loadCorpusEventsFor(app);
       }),
     );
-    const events = mergeCorpusEvents(pages.flat());
-    set((state) => ({
-      events: { ...state.events, ...events },
-    }));
+    const corpusEvents = mergeCorpusEvents(pages.flat());
+    const { activeEvents, seedRuns } = splitSeedCorpus(corpusEvents);
+
+    set((state) => {
+      const liveEvents = Object.fromEntries(
+        Object.entries(state.events).filter(([, event]) => event.metadata.seeded !== true),
+      );
+      return {
+        events: { ...activeEvents, ...liveEvents },
+        processingRuns: { ...state.processingRuns, ...seedRuns },
+      };
+    });
 
     useActivityStore.getState().syncPatches();
-
-    const allEvents = useActivityStore.getState().events;
-    const mockRuns = buildMockProcessingRuns(allEvents);
-
-    set((state) => ({
-      processingRuns: { ...state.processingRuns, ...mockRuns },
-    }));
+    startGlobalProcessingPolling();
   },
   loadCorpusAppPage: async (app) => {
-    const events = mergeCorpusEvents(await loadCorpusEventsFor(app));
-    set((state) => ({
-      events: { ...state.events, ...events },
-    }));
+    const corpusEvents = mergeCorpusEvents(await loadCorpusEventsFor(app));
+    const { activeEvents, seedRuns } = splitSeedCorpus(corpusEvents);
+
+    set((state) => {
+      const liveEvents = Object.fromEntries(
+        Object.entries(state.events).filter(([, event]) => event.metadata.seeded !== true),
+      );
+      return {
+        events: { ...activeEvents, ...liveEvents },
+        processingRuns: { ...state.processingRuns, ...seedRuns },
+      };
+    });
     useActivityStore.getState().syncPatches();
-
-    const allEvents = useActivityStore.getState().events;
-    const mockRuns = buildMockProcessingRuns(allEvents);
-
-    set((state) => ({
-      processingRuns: { ...state.processingRuns, ...mockRuns },
-    }));
+    startGlobalProcessingPolling();
   },
   syncGlobalEvents: async (app?: SourceApp) => {
     try {
@@ -579,10 +759,10 @@ export const useActivityStore = create<ActivityState>((set) => ({
     }),
   processEvents: async (eventIds) => {
     const snapshot = useActivityStore.getState().events;
-    const items = Array.from(new Set(eventIds))
+    const selectedEvents = Array.from(new Set(eventIds))
       .map((eventId) => snapshot[eventId])
-      .filter(Boolean)
-      .map((event) => ({
+      .filter(Boolean);
+    const items = selectedEvents.map((event) => ({
         id: event.id,
         sourceApp: event.sourceApp,
         actorId: event.actorId,
@@ -605,26 +785,136 @@ export const useActivityStore = create<ActivityState>((set) => ({
       updatedAt: now,
     };
 
-    set((state) => ({
-      processingRuns: { ...state.processingRuns, [runId]: run },
-    }));
+    rememberSubmittedEvents(selectedEvents);
+
+    set((state) => {
+      const nextEvents = { ...state.events };
+      run.eventIds.forEach((eventId) => {
+        delete nextEvents[eventId];
+      });
+      return {
+        events: nextEvents,
+        focusedEventId:
+          state.focusedEventId && run.eventIds.includes(state.focusedEventId)
+            ? null
+            : state.focusedEventId,
+        processingRuns: { ...state.processingRuns, [runId]: run },
+      };
+    });
 
     if (typeof window !== "undefined") {
       try {
-        const res = await fetch("/api/v1/indexing/jobs/trigger-bulk-ingestion", {
+        const res = await fetch("/api/indexing/jobs/trigger-bulk-ingestion", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(run.eventIds),
+          body: JSON.stringify(
+            selectedEvents.map((event) => ({
+              id: event.id,
+              batchId: runId,
+              sourceApp: event.sourceApp,
+              actorId: event.actorId,
+              occurredAt: new Date(event.occurredAt).toISOString(),
+              type: event.sourceEntityType,
+              action: event.action,
+              title: event.title,
+              body: event.body || event.title,
+              sourceEntityId: event.sourceEntityId,
+              sourceEntityType: event.sourceEntityType,
+              sourceUrl: event.sourceUrl,
+            })),
+          ),
         });
         if (!res.ok) throw new Error(`API error: ${res.status}`);
-        useActivityStore.getState().updateProcessingRun(runId, "completed");
+        const data = (await res.json()) as ActivityIndexingResponse;
+        useActivityStore.getState().applyBackendJobs(
+          runId,
+          (data.data ?? []).map((job, index) => ({ ...job, eventId: selectedEvents[index]?.id })),
+        );
+        void useActivityStore.getState().syncProcessingRuns();
+        startProcessingRunPolling(runId);
       } catch (err) {
         console.error("Failed to trigger bulk ingestion:", err);
         useActivityStore.getState().updateProcessingRun(runId, "failed");
+        void useActivityStore.getState().syncProcessingRuns();
       }
     }
 
     return runId;
+  },
+  pollProcessingRun: async (runId) => {
+    const run = useActivityStore.getState().processingRuns[runId];
+    if (!run || run.status === "completed" || run.status === "failed") return;
+    if (run.eventIds.length === 0) return;
+
+    try {
+      const existingJobs = Object.values(run.backendJobs ?? {});
+      const jobs = await Promise.all(
+        existingJobs.map(async (job) => {
+          const res = await fetch(`/api/indexing/jobs/${job.id}`, { cache: "no-store" });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const nextJob = (await res.json()) as BackendIndexingJob;
+          return { ...nextJob, eventId: job.eventId };
+        }),
+      );
+      useActivityStore.getState().applyBackendJobs(runId, jobs);
+    } catch (err) {
+      console.error("Failed to poll indexing jobs:", err);
+    }
+  },
+  applyBackendJobs: (runId, jobs) => {
+    set((state) => {
+      const run = state.processingRuns[runId];
+      if (!run) return state;
+
+      const backendJobs = {
+        ...(run.backendJobs ?? {}),
+        ...Object.fromEntries(jobs.map((job) => [job.eventId ?? job.id, job])),
+      };
+      rememberSubmittedJobs(jobs);
+      const status = runStatusFromJobs(Object.values(backendJobs));
+      const nextEvents = { ...state.events };
+      run.eventIds.forEach((eventId) => {
+        delete nextEvents[eventId];
+      });
+
+      if (status === "completed") {
+        stopProcessingRunPolling(runId);
+      } else if (status === "failed") {
+        stopProcessingRunPolling(runId);
+      }
+
+      return {
+        events: nextEvents,
+        focusedEventId:
+          state.focusedEventId && run.eventIds.includes(state.focusedEventId)
+            ? null
+            : state.focusedEventId,
+        processingRuns: {
+          ...state.processingRuns,
+          [runId]: {
+            ...run,
+            status,
+            backendJobs,
+            updatedAt: Date.now(),
+            completedAt: status === "completed" ? Date.now() : run.completedAt,
+          },
+        },
+      };
+    });
+  },
+  hydrateProcessingRunItems: (runId) => {
+    const items = seedRunItems.get(runId);
+    if (!items) return;
+    set((state) => {
+      const run = state.processingRuns[runId];
+      if (!run || run.items.length > 0) return state;
+      return {
+        processingRuns: {
+          ...state.processingRuns,
+          [runId]: { ...run, items },
+        },
+      };
+    });
   },
   updateProcessingRun: (runId, status) =>
     set((state) => {
@@ -731,66 +1021,45 @@ export function buildCogneePreview(events: ActivityEvent[]) {
   }));
 }
 
-function buildMockProcessingRuns(eventsById: Record<string, ActivityEvent>) {
-  const allEvents = Object.values(eventsById).sort((a, b) => a.occurredAt - b.occurredAt);
+function buildBackendProcessingRuns(jobs: BackendIndexingJob[]) {
+  const sortedJobs = [...jobs].sort(
+    (a, b) => Date.parse(a.createdAt ?? "") - Date.parse(b.createdAt ?? ""),
+  );
   const runs: Record<string, ProcessingRun> = {};
 
-  if (allEvents.length === 0) return runs;
+  const groups = new Map<string, BackendIndexingJob[]>();
+  sortedJobs.forEach((job, index) => {
+    const key = job.processingBatchId?.startsWith("processing-run-")
+      ? job.processingBatchId
+      : `backend-run-${index}`;
+    groups.set(key, [...(groups.get(key) ?? []), job]);
+  });
 
-  let mainEvents: ActivityEvent[] = [];
-  let leftoverEvents: ActivityEvent[] = [];
-
-  if (allEvents.length > 100) {
-    mainEvents = allEvents.slice(0, allEvents.length - 100);
-    leftoverEvents = allEvents.slice(allEvents.length - 100);
-  } else {
-    leftoverEvents = allEvents;
-  }
-
-  let index = 0;
-  for (let i = 0; i < mainEvents.length; i += 200) {
-    const batch = mainEvents.slice(i, i + 200);
-    const runId = `mock-run-${index++}`;
-    const createdAt = batch[batch.length - 1].occurredAt + 1000;
+  for (const [runId, batch] of groups) {
+    if (batch.length === 0) continue;
+    const createdAt = Date.parse(batch[0].createdAt ?? new Date().toISOString());
 
     runs[runId] = {
       id: runId,
-      status: "completed",
-      eventIds: batch.map((e) => e.id),
-      items: batch.map((e) => ({
-        id: e.id,
-        sourceApp: e.sourceApp,
-        actorId: e.actorId,
-        occurredAt: e.occurredAt,
-        action: e.action,
-        title: e.title,
-        sourceUrl: e.sourceUrl,
+      status: runStatusFromJobs(batch),
+      eventIds: batch.map((job) => job.sourceUrl || job.documentId),
+      items: batch.map((job) => ({
+        id: job.sourceUrl || job.documentId,
+        sourceApp: sourceApps.includes(job.sourceSystem as SourceApp)
+          ? (job.sourceSystem as SourceApp)
+          : "confluence",
+        actorId: appUsers[0].id,
+        occurredAt: Date.parse(job.createdAt ?? new Date().toISOString()),
+        action: "indexed",
+        title: job.documentTitle || "Indexed document",
+        sourceUrl: job.sourceUrl || "/admin/history",
       })),
+      backendJobs: Object.fromEntries(batch.map((job) => [job.id, job])),
       createdAt,
-      updatedAt: createdAt + 5000,
-      completedAt: createdAt + 5000,
-    };
-  }
-
-  if (leftoverEvents.length > 0) {
-    const runId = `mock-run-${index}`;
-    const createdAt = leftoverEvents[leftoverEvents.length - 1].occurredAt + 1000;
-
-    runs[runId] = {
-      id: runId,
-      status: "processing",
-      eventIds: leftoverEvents.map((e) => e.id),
-      items: leftoverEvents.map((e) => ({
-        id: e.id,
-        sourceApp: e.sourceApp,
-        actorId: e.actorId,
-        occurredAt: e.occurredAt,
-        action: e.action,
-        title: e.title,
-        sourceUrl: e.sourceUrl,
-      })),
-      createdAt,
-      updatedAt: createdAt + 5000,
+      updatedAt: Math.max(...batch.map((job) => Date.parse(job.completedAt ?? job.startedAt ?? job.createdAt ?? ""))),
+      completedAt: batch.every((job) => job.status === "COMPLETED")
+        ? Math.max(...batch.map((job) => Date.parse(job.completedAt ?? job.createdAt ?? "")))
+        : undefined,
     };
   }
 
@@ -906,11 +1175,6 @@ if (typeof window !== "undefined") {
     const store = useActivityStore.getState();
     store.syncPatches();
 
-    // Rebuild processingRuns to include any new patch-derived events
-    const allEvents = useActivityStore.getState().events;
-    const mockRuns = buildMockProcessingRuns(allEvents);
-    useActivityStore.setState((state) => ({
-      processingRuns: { ...state.processingRuns, ...mockRuns },
-    }));
+    // Patch-derived events are new work, so keep them in the Activity panel.
   });
 }

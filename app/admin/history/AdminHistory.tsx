@@ -118,6 +118,7 @@ function progressValue(status: ProcessingRunStatus) {
 export function AdminHistory() {
   const processingRunsById = useActivityStore((state) => state.processingRuns);
   const loadProcessingRuns = useActivityStore((state) => state.loadProcessingRuns);
+  const hydrateProcessingRunItems = useActivityStore((state) => state.hydrateProcessingRunItems);
   const runs = getProcessingRuns(processingRunsById);
 
   const loadCorpusPage = useActivityStore((state) => state.loadCorpusPage);
@@ -173,7 +174,10 @@ export function AdminHistory() {
                     value={run.id}
                     className="rounded-md border bg-background"
                   >
-                    <AccordionTrigger className="px-4 py-4 no-underline hover:no-underline">
+                    <AccordionTrigger
+                      className="px-4 py-4 no-underline hover:no-underline"
+                      onClick={() => hydrateProcessingRunItems(run.id)}
+                    >
                       <span className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3 pr-4">
                         <span className="min-w-0">
                           <span className="flex items-center gap-2">
