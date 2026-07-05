@@ -144,12 +144,13 @@ function sourceEventIdsFromProperties(properties: Record<string, JsonValue> | un
 }
 
 function graphNodeLabel(node: CogneeGraphNode) {
-  return (
+  return String(
     node.label ||
-    stringValue(node.properties?.name) ||
-    stringValue(node.properties?.title) ||
-    stringValue(node.properties?.text) ||
-    node.id
+      stringValue(node.properties?.name) ||
+      stringValue(node.properties?.title) ||
+      stringValue(node.properties?.text) ||
+      node.id ||
+      "",
   );
 }
 

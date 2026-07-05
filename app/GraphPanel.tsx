@@ -363,7 +363,10 @@ export function GraphPanel({
       const isSourceNode = Boolean(sourceApp);
       return {
         id: node.id,
-        label: node.label.length > 28 ? `${node.label.slice(0, 25)}...` : node.label,
+        label:
+          (node.label || "").length > 28
+            ? `${(node.label || "").slice(0, 25)}...`
+            : node.label || "",
         fill: highlighted ? "#f59e0b" : sourceApp ? appColors[sourceApp] : "#8b5cf6",
         size: isSourceNode ? (highlighted || selected ? 20 : 16) : highlighted || selected ? 10 : 5,
         icon: sourceApp ? getIconDataUrl(sourceApp) : undefined,
