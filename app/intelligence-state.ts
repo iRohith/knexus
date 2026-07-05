@@ -99,14 +99,23 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
       try {
         const fallbackRes = await fetch("/cognee/answers.json");
         if (!fallbackRes.ok) throw new Error("Fallback static answers not found");
-        
-        const fallbackAnswers = await fallbackRes.json();
-        
-        const matchedFallback = fallbackAnswers.find(
-          (a: any) => a.question.toLowerCase().includes(trimmed.toLowerCase()) || 
-                      trimmed.toLowerCase().includes(a.question.toLowerCase()) ||
-                      trimmed.toLowerCase().includes(a.queryKey.toLowerCase().replace(/-/g, " "))
-        ) || fallbackAnswers[0];
+
+        const fallbackAnswers = (await fallbackRes.json()) as {
+          question: string;
+          queryKey: string;
+          raw: CogneeQueryPayload;
+          answer?: string;
+          responseTimeMs?: number;
+          datasetName?: string;
+        }[];
+
+        const matchedFallback =
+          fallbackAnswers.find(
+            (a) =>
+              a.question.toLowerCase().includes(trimmed.toLowerCase()) ||
+              trimmed.toLowerCase().includes(a.question.toLowerCase()) ||
+              trimmed.toLowerCase().includes(a.queryKey.toLowerCase().replace(/-/g, " ")),
+          ) || fallbackAnswers[0];
 
         if (!matchedFallback) throw new Error("No fallback answers available");
 
@@ -124,8 +133,8 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
           citations: normalized.citations,
           cognee: {
             datasetName: matchedFallback.datasetName || "corp-os",
-            recall: matchedFallback.raw?.recall ?? [],
-            raw: matchedFallback.raw,
+            recall: matchedFallback.raw?.raw?.recall ?? [],
+            raw: matchedFallback.raw.raw,
           },
           graph: normalized.graph,
           highlightedNodeIds: normalized.highlightedNodeIds,

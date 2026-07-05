@@ -16,7 +16,7 @@ except ImportError:
 
 import cognee
 
-BATCH_SIZE = 10
+BATCH_SIZE = 200
 DATA_DIR = Path(__file__).resolve().parent.parent / "public" / "seed"
 RUNS_FILE = DATA_DIR / "processing_runs.json"
 
@@ -121,7 +121,7 @@ async def main():
                     
     unprocessed_events = [e for e in all_events if e["id"] not in processed_ids]
     print(f"Total events: {len(all_events)} ({len(unprocessed_events)} unprocessed)")
-    all_events = unprocessed_events
+    all_events = unprocessed_events[:3000]
     
     # Process in batches
     try:
@@ -143,9 +143,6 @@ async def main():
             
     finally:
         await client.close()
-
-if __name__ == "__main__":
-    asyncio.run(main())
 
 if __name__ == "__main__":
     asyncio.run(main())

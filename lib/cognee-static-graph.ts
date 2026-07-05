@@ -42,12 +42,12 @@ export async function loadCogneeGraphSnapshot() {
       })
       .catch((err) => {
         console.warn("Failed to fetch live cognee graph, falling back to static snapshot...", err);
-        return fetch(cogneeGraphSnapshotUrl, { cache: "no-store" })
-          .then((response) => {
-            if (response.status === 404) return null;
-            if (!response.ok) throw new Error(`Unable to load Cognee static graph: ${response.status}`);
-            return response.json() as Promise<CogneeGraphSnapshot>;
-          });
+        return fetch(cogneeGraphSnapshotUrl, { cache: "no-store" }).then((response) => {
+          if (response.status === 404) return null;
+          if (!response.ok)
+            throw new Error(`Unable to load Cognee static graph: ${response.status}`);
+          return response.json() as Promise<CogneeGraphSnapshot>;
+        });
       })
       .catch((error) => {
         console.warn("Complete failure loading Cognee graph:", error);

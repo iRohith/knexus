@@ -7,6 +7,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  }
+    "binding": "ASSETS",
+  },
+  "vars": {
+    "API_URL": "http://13.206.218.154.nip.io:8080",
+  },
 }

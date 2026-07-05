@@ -13,12 +13,14 @@ export async function GET() {
   try {
     // Try to resolve dataset ID first
     const datasetsRes = await fetch(`${baseUrl.replace(/\/$/, "")}/api/v1/datasets`, {
-      headers: { "X-Api-Key": apiKey, "Accept": "application/json" }
+      headers: { "X-Api-Key": apiKey, Accept: "application/json" },
     });
-    
+
     if (!datasetsRes.ok) throw new Error("Failed to fetch datasets");
     const datasets = await datasetsRes.json();
-    const dataset = (datasets as any[]).find(d => d.name === datasetName);
+    const dataset = (datasets as { id: string; name: string }[]).find(
+      (d) => d.name === datasetName,
+    );
     if (!dataset) throw new Error("Dataset not found");
 
     const datasetId = dataset.id;
@@ -26,8 +28,8 @@ export async function GET() {
     const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/v1/datasets/${datasetId}/graph`, {
       headers: {
         "X-Api-Key": apiKey,
-        "Accept": "application/json"
-      }
+        Accept: "application/json",
+      },
     });
 
     if (!res.ok) {
@@ -35,7 +37,7 @@ export async function GET() {
     }
 
     const graph = await res.json();
-    
+
     // Wrap to match CogneeGraphSnapshot format
     const snapshot = {
       snapshotId: `live-${Date.now()}`,
@@ -44,9 +46,9 @@ export async function GET() {
       datasetName: datasetName,
       datasetId: datasetId,
       graphData: graph,
-      readonly: true
+      readonly: true,
     };
-    
+
     return NextResponse.json(snapshot);
   } catch (err) {
     console.error("Error fetching live cognee graph:", err);
