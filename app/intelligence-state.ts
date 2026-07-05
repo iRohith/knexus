@@ -95,28 +95,73 @@ export const useIntelligenceStore = create<IntelligenceState>((set, get) => ({
         activeAnswerId: answer.id,
       }));
     } catch (err) {
-      console.error("Failed to query backend:", err);
-      const now = Date.now();
-      const answer: IntelligenceAnswer = {
-        id: `answer-empty-${now}`,
-        queryKey: "error",
-        question: trimmed,
-        answer: "Failed to connect to the backend knowledge graph.",
-        createdAt: now,
-        source: "corpus",
-        responseTimeMs: 0,
-        citations: [],
-        cognee: { recall: [], raw: {} },
-        graph: { nodes: [], edges: [], generatedAt: now, source: "corpus" },
-        highlightedNodeIds: [],
-        highlightedEdgeIds: [],
-        reasoningSteps: [],
-      };
-      set((state) => ({
-        isLoading: false,
-        answers: [answer, ...state.answers],
-        activeAnswerId: answer.id,
-      }));
+      console.warn("Failed to query backend, falling back to static answers...", err);
+      try {
+        const fallbackRes = await fetch("/cognee/answers.json");
+        if (!fallbackRes.ok) throw new Error("Fallback static answers not found");
+        
+        const fallbackAnswers = await fallbackRes.json();
+        
+        const matchedFallback = fallbackAnswers.find(
+          (a: any) => a.question.toLowerCase().includes(trimmed.toLowerCase()) || 
+                      trimmed.toLowerCase().includes(a.question.toLowerCase()) ||
+                      trimmed.toLowerCase().includes(a.queryKey.toLowerCase().replace(/-/g, " "))
+        ) || fallbackAnswers[0];
+
+        if (!matchedFallback) throw new Error("No fallback answers available");
+
+        const normalized = normalizeCogneeQueryPayload(matchedFallback.raw);
+        const now = Date.now();
+
+        const answer: IntelligenceAnswer = {
+          id: `fallback-${now}`,
+          queryKey: matchedFallback.queryKey,
+          question: trimmed,
+          answer: matchedFallback.answer || normalized.answer,
+          createdAt: now,
+          source: "cognee",
+          responseTimeMs: matchedFallback.responseTimeMs ?? 0,
+          citations: normalized.citations,
+          cognee: {
+            datasetName: matchedFallback.datasetName || "corp-os",
+            recall: matchedFallback.raw?.recall ?? [],
+            raw: matchedFallback.raw,
+          },
+          graph: normalized.graph,
+          highlightedNodeIds: normalized.highlightedNodeIds,
+          highlightedEdgeIds: normalized.highlightedEdgeIds,
+          reasoningSteps: normalized.reasoningSteps,
+        };
+
+        set((state) => ({
+          isLoading: false,
+          answers: [answer, ...state.answers],
+          activeAnswerId: answer.id,
+        }));
+      } catch (fallbackErr) {
+        console.error("Fallback also failed:", fallbackErr);
+        const now = Date.now();
+        const answer: IntelligenceAnswer = {
+          id: `answer-empty-${now}`,
+          queryKey: "error",
+          question: trimmed,
+          answer: "Failed to connect to the backend knowledge graph and no fallback was available.",
+          createdAt: now,
+          source: "corpus",
+          responseTimeMs: 0,
+          citations: [],
+          cognee: { recall: [], raw: {} },
+          graph: { nodes: [], edges: [], generatedAt: now, source: "corpus" },
+          highlightedNodeIds: [],
+          highlightedEdgeIds: [],
+          reasoningSteps: [],
+        };
+        set((state) => ({
+          isLoading: false,
+          answers: [answer, ...state.answers],
+          activeAnswerId: answer.id,
+        }));
+      }
     }
   },
 

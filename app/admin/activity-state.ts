@@ -581,7 +581,13 @@ export const useActivityStore = create<ActivityState>((set) => ({
     globalProcessingPollInFlight = true;
     try {
       const res = await fetch("/api/indexing/jobs?size=500&page=0", { cache: "no-store" });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          window.location.href = "/login";
+          return;
+        }
+        throw new Error(`API error: ${res.status}`);
+      }
       const page = (await res.json()) as BackendJobsPage;
       const jobs = page.data ?? [];
       rememberSubmittedJobs(jobs);
