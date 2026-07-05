@@ -44,7 +44,12 @@ export default function RootLayout({
       )}
     >
       <body className="w-full h-full flex flex-col overflow-hidden">
-        <ThemeProvider attribute="class" defaultTheme="dark" disableTransitionOnChange enableColorScheme={false}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          disableTransitionOnChange
+          enableColorScheme={false}
+        >
           <TooltipProvider>
             <AppNavbar />
             {children}

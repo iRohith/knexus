@@ -74,7 +74,7 @@ let writeTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleWrite() {
   if (typeof window === "undefined") return;
   if (writeTimer) clearTimeout(writeTimer);
-  
+
   writeTimer = setTimeout(async () => {
     const store = usePatchStore.getState();
     const queued = store.batches.filter((b) => b.status === "queued");
@@ -138,9 +138,11 @@ export const usePatchStore = create<PatchState>()(
           const existingIds = new Set(state.batches.map((batch) => batch.id));
           const newBatches = batches.filter((batch) => !existingIds.has(batch.id));
           if (newBatches.length === 0) return state;
-          
+
           return {
-            batches: [...state.batches, ...newBatches].sort((left, right) => left.createdAt - right.createdAt),
+            batches: [...state.batches, ...newBatches].sort(
+              (left, right) => left.createdAt - right.createdAt,
+            ),
           };
         });
       },

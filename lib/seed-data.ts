@@ -87,10 +87,15 @@ function cachedJson<T>(path: string): Promise<T> {
   if (!jsonCache.has(path)) {
     jsonCache.set(
       path,
-      fetch(path, { cache: "force-cache" }).then((response) => {
-        if (!response.ok) throw new Error(`Unable to load ${path}: ${response.status}`);
-        return response.json() as Promise<T>;
-      }),
+      fetch(path, { cache: "no-store" })
+        .then((response) => {
+          if (!response.ok) throw new Error(`Unable to load ${path}: ${response.status}`);
+          return response.json() as Promise<T>;
+        })
+        .catch((err) => {
+          jsonCache.delete(path);
+          throw err;
+        }),
     );
   }
 

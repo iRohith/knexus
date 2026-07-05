@@ -4,7 +4,6 @@ import path from "node:path";
 const SOURCE_DIR = path.join(process.cwd(), "local", "generated_data");
 const OUTPUT_DIR = path.join(process.cwd(), "public", "seed");
 const PAGE_SIZE = 50;
-const TEXT_LIMIT = 900;
 const APP_ROUTE_LIMIT_PER_APP = 24;
 
 const appNames = [
@@ -298,7 +297,7 @@ function normalizeByApp(sourceApp, source, filePath, people) {
         routeKey: route("apps", "slack", "channels", channel),
         peopleIds: participantIds,
       }),
-      userRoutes: [],
+      userRoutes: participantIds.map((id) => route("users", id, "slack")),
       appRoutes: [route("apps", "slack", "channels", channel)],
     };
   }
