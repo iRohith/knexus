@@ -168,8 +168,9 @@ public class IndexingService {
             };
 
             // Lookup Employee to satisfy constraints
-            Employee admin = employeeRepository.findByEmail("admin@corp.com")
-                    .orElseThrow(() -> new ResourceNotFoundException("Employee", "email", "admin@corp.com"));
+            Employee admin = employeeRepository.findByEmail("ava.chen@redwoodinference.com")
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Employee", "email", "ava.chen@redwoodinference.com"));
 
             // Force a direct SQL native insert to bypass Hibernate's state checks
             // completely!

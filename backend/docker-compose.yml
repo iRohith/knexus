@@ -5,13 +5,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: knowledge_nexus_dev
-      POSTGRES_USER: nexus
-      POSTGRES_PASSWORD: nexus_dev_password
+      POSTGRES_DB: ${POSTGRES_DB:-corpKRC}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shruti}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nexus -d knowledge_nexus_dev"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-corpKRC}"]
       interval: 10s
       timeout: 5s
       retries: 5

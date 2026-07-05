@@ -41,13 +41,15 @@ public class SecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
-                        .requestMatchers("/auth/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-up.html")
+                        .requestMatchers("/auth/login", "/auth/refresh", "/v3/api-docs/**", "/swagger-ui/**",
+                                "/swagger-up.html")
                         .permitAll()
 
                         // Admin-only endpoints
                         .requestMatchers(HttpMethod.POST, "/documents/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/documents/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/employees/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/auth/register").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/employees/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PATCH, "/employees/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/teams/**").hasRole("ADMIN")
@@ -56,6 +58,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/projects/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/projects/**").hasRole("ADMIN")
                         .requestMatchers("/indexing/**").hasRole("ADMIN")
+                        .requestMatchers("/knowledge/**").hasRole("ADMIN")
                         .requestMatchers("/admin/**").hasRole("ADMIN")
 
                         // Authenticated endpoints (both ADMIN and EMPLOYEE)

@@ -5,9 +5,9 @@
 spring:
   # --- DataSource ---
   datasource:
-    url: jdbc:postgresql://localhost:5432/corpKRC
-    username: postgres
-    password: shruti
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/corpKRC}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:shruti}
     driver-class-name: org.postgresql.Driver
 
   # --- JPA ---
