@@ -1,7 +1,6 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export type PatchOperation = "create" | "update" | "delete";
 
@@ -48,21 +47,33 @@ function currentBatch(batches: PatchBatch[], now: number) {
 }
 
 // ----------------------------------------------------------------------
-// Abstract DB Functions (Emulated with LocalStorage)
+// Backend Patch API
 // ----------------------------------------------------------------------
 
-async function readPatchesFromDB(): Promise<PatchBatch[]> {
+async function readPatchesFromDB(since?: number): Promise<PatchBatch[]> {
   if (typeof window === "undefined") return [];
-  const data = localStorage.getItem("knexus-mock-db");
-  return data ? JSON.parse(data) : [];
+  const query = since ? `?since=${encodeURIComponent(String(since))}` : "";
+  const response = await fetch(`/api/patches${query}`, { cache: "no-store" });
+  if (!response.ok) {
+    if (response.status !== 401) {
+      console.error(`Failed to read patches: ${response.status}`);
+    }
+    return [];
+  }
+  return response.json() as Promise<PatchBatch[]>;
 }
 
-async function writePatchesToDB(batches: PatchBatch[]): Promise<void> {
-  if (typeof window === "undefined") return;
-  const existing = await readPatchesFromDB();
-  const existingIds = new Set(existing.map((b) => b.id));
-  const merged = [...existing, ...batches.filter((b) => !existingIds.has(b.id))];
-  localStorage.setItem("knexus-mock-db", JSON.stringify(merged));
+async function writePatchesToDB(batches: PatchBatch[]): Promise<PatchBatch[]> {
+  if (typeof window === "undefined") return [];
+  const response = await fetch("/api/patches", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ batches }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to write patches: ${response.status}`);
+  }
+  return response.json() as Promise<PatchBatch[]>;
 }
 
 // ----------------------------------------------------------------------
@@ -70,6 +81,8 @@ async function writePatchesToDB(batches: PatchBatch[]): Promise<void> {
 // ----------------------------------------------------------------------
 
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let pollInFlight = false;
 
 function scheduleWrite() {
   if (typeof window === "undefined") return;
@@ -79,18 +92,37 @@ function scheduleWrite() {
     const store = usePatchStore.getState();
     const queued = store.batches.filter((b) => b.status === "queued");
     if (queued.length > 0) {
-      await writePatchesToDB(queued);
-      store.markBatchesFlushed(queued.map((b) => b.id));
+      try {
+        const saved = await writePatchesToDB(queued);
+        store.hydratePatchBatches(saved);
+        store.markBatchesFlushed(queued.map((b) => b.id));
+      } catch (error) {
+        console.error(error);
+      }
     }
-  }, 2000);
+  }, 1000);
 }
 
-if (typeof window !== "undefined") {
-  setInterval(async () => {
-    const batches = await readPatchesFromDB();
+async function pollPatches() {
+  if (pollInFlight) return;
+  pollInFlight = true;
+  try {
+    const store = usePatchStore.getState();
+    const latestCreatedAt = Math.max(0, ...store.batches.map((batch) => batch.createdAt));
+    const batches = await readPatchesFromDB(latestCreatedAt || undefined);
     if (batches.length > 0) {
-      usePatchStore.getState().hydratePatchBatches(batches);
+      store.hydratePatchBatches(batches);
     }
+  } finally {
+    pollInFlight = false;
+  }
+}
+
+function startPatchPolling() {
+  if (typeof window === "undefined" || pollTimer) return;
+  void pollPatches();
+  pollTimer = setInterval(() => {
+    void pollPatches();
   }, 2000);
 }
 
@@ -98,77 +130,72 @@ if (typeof window !== "undefined") {
 // Store Definition
 // ----------------------------------------------------------------------
 
-export const usePatchStore = create<PatchState>()(
-  persist(
-    (set, get) => ({
-      batches: [],
+export const usePatchStore = create<PatchState>()((set, get) => ({
+  batches: [],
 
-      appendPatch: (input) => {
-        const now = input.occurredAt ?? Date.now();
-        const patch: AppPatch = {
-          ...input,
-          id: makeId("patch"),
-          occurredAt: now,
+  appendPatch: (input) => {
+    const now = input.occurredAt ?? Date.now();
+    const patch: AppPatch = {
+      ...input,
+      id: makeId("patch"),
+      occurredAt: now,
+    };
+
+    set((state) => {
+      const openBatch = currentBatch(state.batches, now);
+      if (!openBatch) {
+        return {
+          batches: [
+            ...state.batches,
+            { id: makeId("batch"), createdAt: now, patches: [patch], status: "queued" },
+          ],
         };
+      }
 
-        set((state) => {
-          const openBatch = currentBatch(state.batches, now);
-          if (!openBatch) {
-            return {
-              batches: [
-                ...state.batches,
-                { id: makeId("batch"), createdAt: now, patches: [patch], status: "queued" },
-              ],
-            };
-          }
+      return {
+        batches: state.batches.map((batch) =>
+          batch.id === openBatch.id ? { ...batch, patches: [...batch.patches, patch] } : batch,
+        ),
+      };
+    });
 
-          return {
-            batches: state.batches.map((batch) =>
-              batch.id === openBatch.id ? { ...batch, patches: [...batch.patches, patch] } : batch,
-            ),
-          };
-        });
+    scheduleWrite();
+    return patch.id;
+  },
 
-        scheduleWrite();
-        return patch.id;
-      },
+  hydratePatchBatches: (batches) => {
+    set((state) => {
+      const existingIds = new Set(state.batches.map((batch) => batch.id));
+      const newBatches = batches.filter((batch) => !existingIds.has(batch.id));
+      if (newBatches.length === 0) return state;
 
-      hydratePatchBatches: (batches) => {
-        set((state) => {
-          const existingIds = new Set(state.batches.map((batch) => batch.id));
-          const newBatches = batches.filter((batch) => !existingIds.has(batch.id));
-          if (newBatches.length === 0) return state;
+      return {
+        batches: [...state.batches, ...newBatches].sort(
+          (left, right) => left.createdAt - right.createdAt,
+        ),
+      };
+    });
+  },
 
-          return {
-            batches: [...state.batches, ...newBatches].sort(
-              (left, right) => left.createdAt - right.createdAt,
-            ),
-          };
-        });
-      },
+  pendingPatches: () =>
+    get()
+      .batches.filter((batch) => batch.status === "queued")
+      .flatMap((batch) => batch.patches),
 
-      pendingPatches: () =>
-        get()
-          .batches.filter((batch) => batch.status === "queued")
-          .flatMap((batch) => batch.patches),
+  markBatchesFlushed: (batchIds) => {
+    const flushedIds = new Set(batchIds);
+    set((state) => {
+      state.batches.forEach((batch) => {
+        if (flushedIds.has(batch.id)) batch.status = "flushed";
+      });
+      return { batches: [...state.batches] };
+    });
+  },
 
-      markBatchesFlushed: (batchIds) => {
-        const flushedIds = new Set(batchIds);
-        set((state) => ({
-          batches: state.batches.map((batch) =>
-            flushedIds.has(batch.id) ? { ...batch, status: "flushed" } : batch,
-          ),
-        }));
-      },
+  clearPatches: () => set({ batches: [] }),
+}));
 
-      clearPatches: () => set({ batches: [] }),
-    }),
-    {
-      name: "knexus-global-patch-batches",
-      version: 1,
-    },
-  ),
-);
+startPatchPolling();
 
 export function getGlobalPatchesForApp(app: string) {
   return usePatchStore
