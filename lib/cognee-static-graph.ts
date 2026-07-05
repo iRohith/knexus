@@ -25,7 +25,7 @@ export type CogneeGraphSnapshot = {
   readonly: true;
 };
 
-export const cogneeGraphSnapshotUrl = "/cognee/graph-subset.json";
+export const cogneeGraphSnapshotUrl = "/cognee/graph.json";
 
 let snapshotPromise: Promise<CogneeGraphSnapshot | null> | null = null;
 const defaultMaxRenderNodes = 650;
@@ -33,14 +33,24 @@ const defaultMaxRenderEdges = 1800;
 
 export async function loadCogneeGraphSnapshot() {
   if (!snapshotPromise) {
-    snapshotPromise = fetch(cogneeGraphSnapshotUrl, { cache: "no-store" })
-      .then((response) => {
-        if (response.status === 404) return null;
-        if (!response.ok) throw new Error(`Unable to load Cognee graph: ${response.status}`);
-        return response.json() as Promise<CogneeGraphSnapshot>;
+    snapshotPromise = fetch("/api/v1/knowledge-graph", { cache: "no-store" })
+      .then(async (response) => {
+        if (response.ok) {
+          return response.json() as Promise<CogneeGraphSnapshot>;
+        }
+        throw new Error("Live graph fetch failed");
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch live cognee graph, falling back to static snapshot...", err);
+        return fetch(cogneeGraphSnapshotUrl, { cache: "no-store" })
+          .then((response) => {
+            if (response.status === 404) return null;
+            if (!response.ok) throw new Error(`Unable to load Cognee static graph: ${response.status}`);
+            return response.json() as Promise<CogneeGraphSnapshot>;
+          });
       })
       .catch((error) => {
-        console.warn(error);
+        console.warn("Complete failure loading Cognee graph:", error);
         return null;
       });
   }

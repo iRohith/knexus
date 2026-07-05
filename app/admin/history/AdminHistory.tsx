@@ -206,7 +206,7 @@ export function AdminHistory() {
                                 }}
                               >
                                 <RefreshCw className="mr-1 size-3" />
-                                Retry Failed
+                                Retry
                               </Button>
                             )}
                           </span>

@@ -1,0 +1,1223 @@
+{
+  "run_dd91799fa56b": {
+    "id": "run_dd91799fa56b",
+    "status": "completed",
+    "createdAt": 1783265597598,
+    "updatedAt": 1783265597598,
+    "completedAt": 1783265597598,
+    "eventIds": [
+      "slack:8160000000",
+      "slack:7167800000",
+      "slack:7088881234",
+      "slack:6865432109",
+      "slack:6790012345",
+      "slack:6543210000",
+      "slack:6472105432",
+      "slack:6378901234",
+      "slack:6249876543",
+      "slack:6161616161"
+    ],
+    "items": [
+      {
+        "id": "slack:8160000000",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 8160000450000,
+        "action": "created",
+        "title": "#eng-oncall: 8160000000",
+        "sourceUrl": "sources/slack/eng-oncall/8160000000-rotation-handshake-travel-assisted.json"
+      },
+      {
+        "id": "slack:7167800000",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 7167865400000,
+        "action": "created",
+        "title": "#eng-oncall: 7167800000",
+        "sourceUrl": "sources/slack/incidents/7167800000-shift-snapshot-midday-coverage-sync.json"
+      },
+      {
+        "id": "slack:7088881234",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 7088884567000,
+        "action": "created",
+        "title": "#architecture: 7088881234",
+        "sourceUrl": "sources/slack/architecture/7088881234-intent-first-route-lifecycle-contract.json"
+      },
+      {
+        "id": "slack:6865432109",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 6865433909000,
+        "action": "created",
+        "title": "#incidents: 6865432109",
+        "sourceUrl": "sources/slack/incidents/6865432109-autoscale-warmup-west-coast-throttle-triage.json"
+      },
+      {
+        "id": "slack:6790012345",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 6790012345000,
+        "action": "created",
+        "title": "#eng-releases: 6790012345",
+        "sourceUrl": "sources/slack/eng-releases/6790012345-maint-window-autosuppress-false-positive-rollback-huddle.json"
+      },
+      {
+        "id": "slack:6543210000",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 6543210065000,
+        "action": "created",
+        "title": "#docs: 6543210000",
+        "sourceUrl": "sources/slack/lunch-plans/6543210000-migration-swap-lint-and-snippet-handoff.json"
+      },
+      {
+        "id": "slack:6472105432",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 6472105750000,
+        "action": "created",
+        "title": "#eng-infra: 6472105432",
+        "sourceUrl": "sources/slack/eng-infra/6472105432-tempstore-io-latency-spike-post-rolling-restart.json"
+      },
+      {
+        "id": "slack:6378901234",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 6378901299000,
+        "action": "created",
+        "title": "#product: 6378901234",
+        "sourceUrl": "sources/slack/product/6378901234-priority-lattice-coupling-bakeoff.json"
+      },
+      {
+        "id": "slack:6249876543",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 6249876625000,
+        "action": "created",
+        "title": "#eng-oncall: 6249876543",
+        "sourceUrl": "sources/slack/eng-oncall/6249876543-primsec-schedule-swap-and-incident-watch.json"
+      },
+      {
+        "id": "slack:6161616161",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 6161616220000,
+        "action": "created",
+        "title": "#eng-releases: 6161616161",
+        "sourceUrl": "sources/slack/eng-releases/6161616161-service-handshake-gap-analysis.json"
+      }
+    ]
+  },
+  "run_db788d861a45": {
+    "id": "run_db788d861a45",
+    "status": "completed",
+    "createdAt": 1783265653504,
+    "updatedAt": 1783265653504,
+    "completedAt": 1783265653504,
+    "eventIds": [
+      "slack:6151234567",
+      "slack:6141592653",
+      "slack:6001234567",
+      "slack:5987659999",
+      "slack:5943210001",
+      "slack:5832109999",
+      "slack:5612347890",
+      "slack:5567890123",
+      "slack:5467821111",
+      "slack:5220001111"
+    ],
+    "items": [
+      {
+        "id": "slack:6151234567",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 6151234620000,
+        "action": "created",
+        "title": "#product: 6151234567",
+        "sourceUrl": "sources/slack/product/6151234567-dp-validation-lightning-sync.json"
+      },
+      {
+        "id": "slack:6141592653",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 6141596053000,
+        "action": "created",
+        "title": "#customer-success: 6141592653",
+        "sourceUrl": "sources/slack/customer-success/6141592653-finflow-compact-int8-routing-pilot.json"
+      },
+      {
+        "id": "slack:6001234567",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 6001234605000,
+        "action": "created",
+        "title": "#product: 6001234567",
+        "sourceUrl": "sources/slack/product/6001234567-q2-okr-flightcheck-owners-deps-pr-pings.json"
+      },
+      {
+        "id": "slack:5987659999",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 5987660450000,
+        "action": "created",
+        "title": "#new-hires: 5987659999",
+        "sourceUrl": "sources/slack/new-hires/5987659999-haris-day-one-quick-asks.json"
+      },
+      {
+        "id": "slack:5943210001",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 5943210032000,
+        "action": "created",
+        "title": "#eng-releases: 5943210001",
+        "sourceUrl": "sources/slack/eng-releases/5943210001-scoped-hosted-rollback-dedicated-pinned.json"
+      },
+      {
+        "id": "slack:5832109999",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 5832111400000,
+        "action": "created",
+        "title": "#eng-runtime: 5832109999",
+        "sourceUrl": "sources/slack/eng-runtime/5832109999-budget-hints-admission-coalescer-refactor.json"
+      },
+      {
+        "id": "slack:5612347890",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 5612348015000,
+        "action": "created",
+        "title": "#docs: 5612347890",
+        "sourceUrl": "sources/slack/docs/5612347890-kb-refactor-orphan-links-claim.json"
+      },
+      {
+        "id": "slack:5567890123",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 5567890450000,
+        "action": "created",
+        "title": "#product: 5567890123",
+        "sourceUrl": "sources/slack/product/5567890123-sla-exceptions-regulatory-billing-backstop.json"
+      },
+      {
+        "id": "slack:5467821111",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 5467821450000,
+        "action": "created",
+        "title": "#docs: 5467821111",
+        "sourceUrl": "sources/slack/docs/5467821111-release-draft-anchor-surge.json"
+      },
+      {
+        "id": "slack:5220001111",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 5220001180000,
+        "action": "created",
+        "title": "#product: 5220001111",
+        "sourceUrl": "sources/slack/product/5220001111-deprecation-incentive-and-lite-onboard-sync.json"
+      }
+    ]
+  },
+  "run_39a093bae33b": {
+    "id": "run_39a093bae33b",
+    "status": "completed",
+    "createdAt": 1783266926915,
+    "updatedAt": 1783266926915,
+    "completedAt": 1783266926915,
+    "eventIds": [
+      "slack:5201234567",
+      "slack:5161234567",
+      "slack:4891234567",
+      "slack:4890109999",
+      "slack:4801234567",
+      "slack:4799991111",
+      "slack:4791234567",
+      "slack:4765432100",
+      "slack:4722223333",
+      "slack:4623512345"
+    ],
+    "items": [
+      {
+        "id": "slack:5201234567",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 5201238167000,
+        "action": "created",
+        "title": "#incidents: 5201234567",
+        "sourceUrl": "sources/slack/incidents/5201234567.json"
+      },
+      {
+        "id": "slack:5161234567",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 5161234620000,
+        "action": "created",
+        "title": "#eng-ml: 5161234567",
+        "sourceUrl": "sources/slack/eng-ml/5161234567-fp8-l40s-kernel-tiling-batch-saturation.json"
+      },
+      {
+        "id": "slack:4891234567",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 4891234590000,
+        "action": "created",
+        "title": "#architecture: 4891234567",
+        "sourceUrl": "sources/slack/architecture/4891234567-defer-token-runtime-vs-central-discussion.json"
+      },
+      {
+        "id": "slack:4890109999",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 4890110120000,
+        "action": "created",
+        "title": "#docs: 4890109999",
+        "sourceUrl": "sources/slack/docs/4890109999-tiered-quota-ux-snippet-fix.json"
+      },
+      {
+        "id": "slack:4801234567",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 4801234585000,
+        "action": "created",
+        "title": "#eng-security: 4801234567",
+        "sourceUrl": "sources/slack/eng-security/4801234567-403-surge-scim-kms-attr-mapping.json"
+      },
+      {
+        "id": "slack:4799991111",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 4799991118000,
+        "action": "created",
+        "title": "#eng-security: 4799991111",
+        "sourceUrl": "sources/slack/eng-security/4799991111-scim-403-role-claim-kms-race.json"
+      },
+      {
+        "id": "slack:4791234567",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 4791234580000,
+        "action": "created",
+        "title": "#eng-security: 4791234567",
+        "sourceUrl": "sources/slack/eng-security/4791234567-idp-provisioning-403-wave-root-cause-check.json"
+      },
+      {
+        "id": "slack:4765432100",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 4765435700000,
+        "action": "created",
+        "title": "#customer-success: 4765432100",
+        "sourceUrl": "sources/slack/customer-success/4765432100-polaris-onboard-kickoff-thread.json"
+      },
+      {
+        "id": "slack:4722223333",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 4722223350000,
+        "action": "created",
+        "title": "#eng-runtime: 4722223333",
+        "sourceUrl": "sources/slack/eng-runtime/4722223333-kernel-probe-fp8-kv-autotune.json"
+      },
+      {
+        "id": "slack:4623512345",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 4623512345000,
+        "action": "created",
+        "title": "#architecture: 4623512345",
+        "sourceUrl": "sources/slack/architecture/4623512345-mux-routing-abstractions-refactor-plan.json"
+      }
+    ]
+  },
+  "run_781bd29ea17c": {
+    "id": "run_781bd29ea17c",
+    "status": "completed",
+    "createdAt": 1783266928293,
+    "updatedAt": 1783266928293,
+    "completedAt": 1783266928293,
+    "eventIds": [
+      "slack:4241257890",
+      "slack:4241140000",
+      "slack:4241131111",
+      "slack:4241122334",
+      "slack:4161234567",
+      "slack:4132110000",
+      "slack:4109876543",
+      "slack:4101234567",
+      "slack:4081234567",
+      "slack:3987659876"
+    ],
+    "items": [
+      {
+        "id": "slack:4241257890",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 4241258060000,
+        "action": "created",
+        "title": "#announcements: 4241257890",
+        "sourceUrl": "sources/slack/eng-sre/4241257890-exec-weekly-launch-and-eu-retention-flash.json"
+      },
+      {
+        "id": "slack:4241140000",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 4241140300000,
+        "action": "created",
+        "title": "#announcements: 4241140000",
+        "sourceUrl": "sources/slack/announcements/4241140000-founders-flash-ga-checklist.json"
+      },
+      {
+        "id": "slack:4241131111",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 4241131450000,
+        "action": "created",
+        "title": "#announcements: 4241131111",
+        "sourceUrl": "sources/slack/announcements/4241131111-exec-snapshot-private-ga-readout.json"
+      },
+      {
+        "id": "slack:4241122334",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 4241122699000,
+        "action": "created",
+        "title": "#announcements: 4241122334",
+        "sourceUrl": "sources/slack/announcements/4241122334-exec-weekly-microbrief-sla-readiness.json"
+      },
+      {
+        "id": "slack:4161234567",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 4161235600000,
+        "action": "created",
+        "title": "#partnerships: 4161234567",
+        "sourceUrl": "sources/slack/partnerships/4161234567-marketplace-certification-and-sku-mapping-snow-dbx-milvus.json"
+      },
+      {
+        "id": "slack:4132110000",
+        "sourceApp": "slack",
+        "actorId": "mateo-alvarez",
+        "occurredAt": 4132110365000,
+        "action": "created",
+        "title": "#eng-security: 4132110000",
+        "sourceUrl": "sources/slack/eng-security/4132110000-legacy-token-bridge-retirement-chat.json"
+      },
+      {
+        "id": "slack:4109876543",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 4109876625000,
+        "action": "created",
+        "title": "#eng-releases: 4109876543",
+        "sourceUrl": "sources/slack/eng-releases/4109876543-branch-lane-nudge.json"
+      },
+      {
+        "id": "slack:4101234567",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 4101234585000,
+        "action": "created",
+        "title": "#docs: 4101234567",
+        "sourceUrl": "sources/slack/docs/4101234567-docs-ratequota-cheatsheet-finalize.json"
+      },
+      {
+        "id": "slack:4081234567",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 4081234595000,
+        "action": "created",
+        "title": "#eng-releases: 4081234567",
+        "sourceUrl": "sources/slack/eng-releases/4081234567-canary-memory-pressure-revert-handoff.json"
+      },
+      {
+        "id": "slack:3987659876",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3987660200000,
+        "action": "created",
+        "title": "#customer-success: 3987659876",
+        "sourceUrl": "sources/slack/customer-success/3987659876-eu-entity-swap-delegated-signer-resolution.json"
+      }
+    ]
+  },
+  "run_71014478ea65": {
+    "id": "run_71014478ea65",
+    "status": "completed",
+    "createdAt": 1783266929625,
+    "updatedAt": 1783266929625,
+    "completedAt": 1783266929625,
+    "eventIds": [
+      "slack:3987654321",
+      "slack:3987654322",
+      "slack:3967890123",
+      "slack:3950000001",
+      "slack:3912345678",
+      "slack:3912345678",
+      "slack:3905553333",
+      "slack:3876543210",
+      "slack:3865432100",
+      "slack:3860001234"
+    ],
+    "items": [
+      {
+        "id": "slack:3987654321",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3987654500000,
+        "action": "created",
+        "title": "#customer-success: 3987654321",
+        "sourceUrl": "sources/slack/customer-success/3987654321-midterm-renegotiation-signer-delegation-checkin.json"
+      },
+      {
+        "id": "slack:3987654322",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 3987654380000,
+        "action": "created",
+        "title": "#docs: 3987654322",
+        "sourceUrl": "sources/slack/docs/3987654322-parse-shim-heuristics-links-fix.json"
+      },
+      {
+        "id": "slack:3967890123",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3967890160000,
+        "action": "created",
+        "title": "#docs: 3967890123",
+        "sourceUrl": "sources/slack/docs/3967890123-pricing-microbilling-rounding-sdk-examples.json"
+      },
+      {
+        "id": "slack:3950000001",
+        "sourceApp": "slack",
+        "actorId": "claire-dubois",
+        "occurredAt": 3950000600000,
+        "action": "created",
+        "title": "#partnerships: 3950000001",
+        "sourceUrl": "sources/slack/partnerships/3950000001-kms-byok-saml-scim-lab-onboarding-plan.json"
+      },
+      {
+        "id": "slack:3912345678",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 3912347890000,
+        "action": "created",
+        "title": "#eng-releases: 3912345678",
+        "sourceUrl": "sources/slack/eng-releases/3912345678-rollout-bandwidth-and-freeze-exemption-call.json"
+      },
+      {
+        "id": "slack:3912345678",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3912346278000,
+        "action": "created",
+        "title": "#eng-runtime: 3912345678",
+        "sourceUrl": "sources/slack/eng-runtime/3912345678-kvcache-selector-waterfall-kpi-spike.json"
+      },
+      {
+        "id": "slack:3905553333",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3905553460000,
+        "action": "created",
+        "title": "#incidents: 3905553333",
+        "sourceUrl": "sources/slack/incidents/3905553333-dns-nxdomain-persistent-probes.json"
+      },
+      {
+        "id": "slack:3876543210",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3876543450000,
+        "action": "created",
+        "title": "#eng-ml: 3876543210",
+        "sourceUrl": "sources/slack/eng-ml/3876543210-synthetic-holdout-stressmix-int4-onboard.json"
+      },
+      {
+        "id": "slack:3865432100",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3865432125000,
+        "action": "created",
+        "title": "#docs: 3865432100",
+        "sourceUrl": "sources/slack/docs/3865432100-bom-in-snippets-anchor-encoding-and-sanitization.json"
+      },
+      {
+        "id": "slack:3860001234",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3860001300000,
+        "action": "created",
+        "title": "#docs: 3860001234",
+        "sourceUrl": "sources/slack/docs/3860001234-ruby-quota-snippet-billing-examples-linkfix.json"
+      }
+    ]
+  },
+  "run_2899c799d8e7": {
+    "id": "run_2899c799d8e7",
+    "status": "completed",
+    "createdAt": 1783266930957,
+    "updatedAt": 1783266930957,
+    "completedAt": 1783266930957,
+    "eventIds": [
+      "slack:3801239999",
+      "slack:3772468001",
+      "slack:3765432109",
+      "slack:3751234567",
+      "slack:3639991111",
+      "slack:3625009876",
+      "slack:3587650000",
+      "slack:3512345678",
+      "slack:3490012345",
+      "slack:3479000000"
+    ],
+    "items": [
+      {
+        "id": "slack:3801239999",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3801243600000,
+        "action": "created",
+        "title": "#eng-security: 3801239999",
+        "sourceUrl": "sources/slack/eng-security/3801239999-wrap-log-exposure-coordination.json"
+      },
+      {
+        "id": "slack:3772468001",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3772471500000,
+        "action": "created",
+        "title": "#eng-ml: 3772468001",
+        "sourceUrl": "sources/slack/eng-ml/3772468001-spectral-overlap-holdout-spill-triage.json"
+      },
+      {
+        "id": "slack:3765432109",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3765435609000,
+        "action": "created",
+        "title": "#incidents: 3765432109",
+        "sourceUrl": "sources/slack/incidents/3765432109.json"
+      },
+      {
+        "id": "slack:3751234567",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3751234599000,
+        "action": "created",
+        "title": "#sales: 3751234567",
+        "sourceUrl": "sources/slack/sales/3751234567-data-transfer-wizardry-poc-constraints.json"
+      },
+      {
+        "id": "slack:3639991111",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3639991430000,
+        "action": "created",
+        "title": "#announcements: 3639991111",
+        "sourceUrl": "sources/slack/announcements/3639991111-velocity-note-strategy-costs-launch-readout.json"
+      },
+      {
+        "id": "slack:3625009876",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3625009910000,
+        "action": "created",
+        "title": "#marketing: 3625009876",
+        "sourceUrl": "sources/slack/marketing/3625009876-webinar-instant-route-partial-enrich-canary.json"
+      },
+      {
+        "id": "slack:3587650000",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3587652400000,
+        "action": "created",
+        "title": "#eng-oncall: 3587650000",
+        "sourceUrl": "sources/slack/general/3587650000.json"
+      },
+      {
+        "id": "slack:3512345678",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3512345800000,
+        "action": "created",
+        "title": "#eng-releases: 3512345678",
+        "sourceUrl": "sources/slack/eng-releases/3512345678-kms-alias-ttl-image-tag-gap-rollforward.json"
+      },
+      {
+        "id": "slack:3490012345",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3490015945000,
+        "action": "created",
+        "title": "#marketing: 3490012345",
+        "sourceUrl": "sources/slack/marketing/3490012345-onboard-welcome-stagger-ramp-and-tone-check.json"
+      },
+      {
+        "id": "slack:3479000000",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 3479000800000,
+        "action": "created",
+        "title": "#partnerships: 3479000000",
+        "sourceUrl": "sources/slack/partnerships/3479000000-edgescale-mini-lab-flow-accessibility-and-shipments.json"
+      }
+    ]
+  },
+  "run_af8e3070f118": {
+    "id": "run_af8e3070f118",
+    "status": "completed",
+    "createdAt": 1783266932685,
+    "updatedAt": 1783266932685,
+    "completedAt": 1783266932685,
+    "eventIds": [
+      "slack:3472106789",
+      "slack:3467890123",
+      "slack:3456791234",
+      "slack:3419876543",
+      "slack:3412345678",
+      "slack:3410012345",
+      "slack:3380012345",
+      "slack:3380012345",
+      "slack:3351236789",
+      "slack:3337778888"
+    ],
+    "items": [
+      {
+        "id": "slack:3472106789",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3472107190000,
+        "action": "created",
+        "title": "#eng-releases: 3472106789",
+        "sourceUrl": "sources/slack/eng-releases/3472106789-launch-gate-checklist-and-rollback-triggers.json"
+      },
+      {
+        "id": "slack:3467890123",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3467890180000,
+        "action": "created",
+        "title": "#sales: 3467890123",
+        "sourceUrl": "sources/slack/partnerships/3467890123-newco-rfi-capability-brief.json"
+      },
+      {
+        "id": "slack:3456791234",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3456791290000,
+        "action": "created",
+        "title": "#eng-releases: 3456791234",
+        "sourceUrl": "sources/slack/eng-releases/3456791234-manifest-platform-mismatch-rebuild.json"
+      },
+      {
+        "id": "slack:3419876543",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3419876900000,
+        "action": "created",
+        "title": "#eng-runtime: 3419876543",
+        "sourceUrl": "sources/slack/eng-runtime/3419876543-prefetch-harmony-queue-stewardship.json"
+      },
+      {
+        "id": "slack:3412345678",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3412345760000,
+        "action": "created",
+        "title": "#all-hands: 3412345678",
+        "sourceUrl": "sources/slack/all-hands/3412345678-sips-and-gongs-post-allhands-banter.json"
+      },
+      {
+        "id": "slack:3410012345",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3410012520000,
+        "action": "created",
+        "title": "#sales: 3410012345",
+        "sourceUrl": "sources/slack/sales/3410012345-eu-residency-kms-hsm-notarize-ask.json"
+      },
+      {
+        "id": "slack:3380012345",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3380012945000,
+        "action": "created",
+        "title": "#incidents: 3380012345",
+        "sourceUrl": "sources/slack/eng-ml/3380012345.json"
+      },
+      {
+        "id": "slack:3380012345",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3380012410000,
+        "action": "created",
+        "title": "#sales: 3380012345",
+        "sourceUrl": "sources/slack/sales/3380012345-eu-evidence-residency-kms-quote-iso-soc-ask.json"
+      },
+      {
+        "id": "slack:3351236789",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3351240450000,
+        "action": "created",
+        "title": "#partnerships: 3351236789",
+        "sourceUrl": "sources/slack/partnerships/3351236789-thirdparty-visibility-pen-window-plan.json"
+      },
+      {
+        "id": "slack:3337778888",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3337779260000,
+        "action": "created",
+        "title": "#incidents: 3337778888",
+        "sourceUrl": "sources/slack/incidents/3337778888-token-loop-fallback-pager.json"
+      }
+    ]
+  },
+  "run_22ca4b001439": {
+    "id": "run_22ca4b001439",
+    "status": "completed",
+    "createdAt": 1783266934028,
+    "updatedAt": 1783266934028,
+    "completedAt": 1783266934028,
+    "eventIds": [
+      "slack:3329123456",
+      "slack:3319998888",
+      "slack:3312345678",
+      "slack:3310001111",
+      "slack:3301239999",
+      "slack:3288881234",
+      "slack:3265432100",
+      "slack:3260000000",
+      "slack:3245678123",
+      "slack:3185432100"
+    ],
+    "items": [
+      {
+        "id": "slack:3329123456",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 3329123530000,
+        "action": "created",
+        "title": "#marketing: 3329123456",
+        "sourceUrl": "sources/slack/marketing/3329123456-optimize-launch-claim-ops-and-routing.json"
+      },
+      {
+        "id": "slack:3319998888",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3319998915000,
+        "action": "created",
+        "title": "#support: 3319998888",
+        "sourceUrl": "sources/slack/support/3319998888-dashboard-copy-soft-hyphen-401.json"
+      },
+      {
+        "id": "slack:3312345678",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3312345800000,
+        "action": "created",
+        "title": "#incidents: 3312345678",
+        "sourceUrl": "sources/slack/incidents/3312345678-auth-signing-sync-escalation.json"
+      },
+      {
+        "id": "slack:3310001111",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3310001222000,
+        "action": "created",
+        "title": "#marketing: 3310001111",
+        "sourceUrl": "sources/slack/general/3310001111-rehearsal-swap-and-demo-red-team.json"
+      },
+      {
+        "id": "slack:3301239999",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3301240120000,
+        "action": "created",
+        "title": "#eng-infra: 3301239999",
+        "sourceUrl": "sources/slack/eng-infra/3301239999-burst-shield-preemptive-reshuffle.json"
+      },
+      {
+        "id": "slack:3288881234",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3288881399000,
+        "action": "created",
+        "title": "#customer-success: 3288881234",
+        "sourceUrl": "sources/slack/customer-success/3288881234-proxy-token-swap-multiplex-triage.json"
+      },
+      {
+        "id": "slack:3265432100",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3265432138000,
+        "action": "created",
+        "title": "#customer-success: 3265432100",
+        "sourceUrl": "sources/slack/eng-runtime/3265432100-cs-post-incident-ops-closure-and-customer-credit-plan.json"
+      },
+      {
+        "id": "slack:3260000000",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 3260000120000,
+        "action": "created",
+        "title": "#marketing: 3260000000",
+        "sourceUrl": "sources/slack/random/3260000000-mini-lab-streaming-bench-launch.json"
+      },
+      {
+        "id": "slack:3245678123",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3245678420000,
+        "action": "created",
+        "title": "#incidents: 3245678123",
+        "sourceUrl": "sources/slack/incidents/3245678123-ownership-briefing-and-cust-liaison.json"
+      },
+      {
+        "id": "slack:3185432100",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3185432165000,
+        "action": "created",
+        "title": "#eng-ml: 3185432100",
+        "sourceUrl": "sources/slack/eng-ml/3185432100-nebula13b-onboard-calib-notes.json"
+      }
+    ]
+  },
+  "run_e0370d3642bf": {
+    "id": "run_e0370d3642bf",
+    "status": "completed",
+    "createdAt": 1783266935371,
+    "updatedAt": 1783266935371,
+    "completedAt": 1783266935371,
+    "eventIds": [
+      "slack:3182468000",
+      "slack:3180501234",
+      "slack:3167890123",
+      "slack:3166000000",
+      "slack:3135792468",
+      "slack:3131111111",
+      "slack:3129988776",
+      "slack:3112345678",
+      "slack:3111111111",
+      "slack:3098765432"
+    ],
+    "items": [
+      {
+        "id": "slack:3182468000",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3182468072000,
+        "action": "created",
+        "title": "#customer-success: 3182468000",
+        "sourceUrl": "sources/slack/customer-success/3182468000-orchid-legal-eu-central-allowlist-qps-lift.json"
+      },
+      {
+        "id": "slack:3180501234",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3180501820000,
+        "action": "created",
+        "title": "#incidents: 3180501234",
+        "sourceUrl": "sources/slack/incidents/3180501234-surge-flip-crashstack-handoff.json"
+      },
+      {
+        "id": "slack:3167890123",
+        "sourceApp": "slack",
+        "actorId": "mateo-alvarez",
+        "occurredAt": 3167890456000,
+        "action": "created",
+        "title": "#sales: 3167890123",
+        "sourceUrl": "sources/slack/sales/3167890123-astrabridge-poc-exec-escalation-key-management-soc2.json"
+      },
+      {
+        "id": "slack:3166000000",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 3166000105000,
+        "action": "created",
+        "title": "#partnerships: 3166000000",
+        "sourceUrl": "sources/slack/partnerships/3166000000-private-offer-waterfall-si-early-activation-play.json"
+      },
+      {
+        "id": "slack:3135792468",
+        "sourceApp": "slack",
+        "actorId": "marcus-lin",
+        "occurredAt": 3135792495000,
+        "action": "created",
+        "title": "#customer-success: 3135792468",
+        "sourceUrl": "sources/slack/customer-success/3135792468-inproduct-survey-and-voice-harvest.json"
+      },
+      {
+        "id": "slack:3131111111",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3131111170000,
+        "action": "created",
+        "title": "#partnerships: 3131111111",
+        "sourceUrl": "sources/slack/partnerships/3131111111-edgeforge-signed-upload-recon-playbook.json"
+      },
+      {
+        "id": "slack:3129988776",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3129988800000,
+        "action": "created",
+        "title": "#eng-ml: 3129988776",
+        "sourceUrl": "sources/slack/eng-ml/3129988776-rotary-index-clamp-warning.json"
+      },
+      {
+        "id": "slack:3112345678",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3112346480000,
+        "action": "created",
+        "title": "#customer-success: 3112345678",
+        "sourceUrl": "sources/slack/customer-success/3112345678-dryrun-crm-playbook-sync-preview.json"
+      },
+      {
+        "id": "slack:3111111111",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3111111750000,
+        "action": "created",
+        "title": "#customer-success: 3111111111",
+        "sourceUrl": "sources/slack/customer-success/3111111111-legacy-crm-sync-dryrun-checklist.json"
+      },
+      {
+        "id": "slack:3098765432",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3098765489000,
+        "action": "created",
+        "title": "#incidents: 3098765432",
+        "sourceUrl": "sources/slack/incidents/3098765432.json"
+      }
+    ]
+  },
+  "run_27f024324d08": {
+    "id": "run_27f024324d08",
+    "status": "completed",
+    "createdAt": 1783266936632,
+    "updatedAt": 1783266936632,
+    "completedAt": 1783266936632,
+    "eventIds": [
+      "slack:3087654321",
+      "slack:3087654321",
+      "slack:3076543210",
+      "slack:3071237890",
+      "slack:3054321122",
+      "slack:3045609876",
+      "slack:3012345678",
+      "slack:2999999999",
+      "slack:2987650000",
+      "slack:2934567890"
+    ],
+    "items": [
+      {
+        "id": "slack:3087654321",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 3087654410000,
+        "action": "created",
+        "title": "#sales: 3087654321",
+        "sourceUrl": "sources/slack/sales/3087654321-atlasgrid-rfp-poc-procurement-logistics.json"
+      },
+      {
+        "id": "slack:3087654321",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3087654400000,
+        "action": "created",
+        "title": "#eng-runtime: 3087654321",
+        "sourceUrl": "sources/slack/eng-runtime/3087654321-length-strata-prefill-decode-experiment-log.json"
+      },
+      {
+        "id": "slack:3076543210",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3076543289000,
+        "action": "created",
+        "title": "#all-hands: 3076543210",
+        "sourceUrl": "sources/slack/all-hands/3076543210-platform-state-launch-callouts-qna-and-recording.json"
+      },
+      {
+        "id": "slack:3071237890",
+        "sourceApp": "slack",
+        "actorId": "ben-carter",
+        "occurredAt": 3071237955000,
+        "action": "created",
+        "title": "#eng-oncall: 3071237890",
+        "sourceUrl": "sources/slack/eng-oncall/3071237890-tighten-remediation-routines-and-escalations.json"
+      },
+      {
+        "id": "slack:3054321122",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3054321789000,
+        "action": "created",
+        "title": "#sales: 3054321122",
+        "sourceUrl": "sources/slack/sales/3054321122-auroracare-pipeline-async-checkin.json"
+      },
+      {
+        "id": "slack:3045609876",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 3045614320000,
+        "action": "created",
+        "title": "#marketing: 3045609876",
+        "sourceUrl": "sources/slack/marketing/3045609876-performance-digest-stampede.json"
+      },
+      {
+        "id": "slack:3012345678",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 3012346025000,
+        "action": "created",
+        "title": "#eng-oncall: 3012345678",
+        "sourceUrl": "sources/slack/eng-oncall/3012345678-evening-handoff-regional-failover-brief.json"
+      },
+      {
+        "id": "slack:2999999999",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 2999994100000,
+        "action": "created",
+        "title": "#marketing: 2999999999",
+        "sourceUrl": "sources/slack/marketing/2999999999-workshop-credit-channel-exploration.json"
+      },
+      {
+        "id": "slack:2987650000",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 2987650090000,
+        "action": "created",
+        "title": "#marketing: 2987650000",
+        "sourceUrl": "sources/slack/marketing/2987650000-multiformat-exec-pack-and-localization-check.json"
+      },
+      {
+        "id": "slack:2934567890",
+        "sourceApp": "slack",
+        "actorId": "mateo-alvarez",
+        "occurredAt": 2934568025000,
+        "action": "created",
+        "title": "#marketing: 2934567890",
+        "sourceUrl": "sources/slack/marketing/2934567890-global-benchmark-multilang-nurture.json"
+      }
+    ]
+  },
+  "run_0b91a052c703": {
+    "id": "run_0b91a052c703",
+    "status": "completed",
+    "createdAt": 1783266938021,
+    "updatedAt": 1783266938021,
+    "completedAt": 1783266938021,
+    "eventIds": [
+      "slack:2900000000",
+      "slack:2890012345",
+      "slack:2890012345",
+      "slack:2887654321",
+      "slack:2876543210",
+      "slack:2861010101",
+      "slack:2859001234",
+      "slack:2840011223",
+      "slack:2840009876",
+      "slack:2839990011"
+    ],
+    "items": [
+      {
+        "id": "slack:2900000000",
+        "sourceApp": "slack",
+        "actorId": "ethan-park",
+        "occurredAt": 2900000120000,
+        "action": "created",
+        "title": "#partnerships: 2900000000",
+        "sourceUrl": "sources/slack/partnerships/2900000000-marketplace-legal-pen-soc-guidance.json"
+      },
+      {
+        "id": "slack:2890012345",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 2890013900000,
+        "action": "created",
+        "title": "#people-ops: 2890012345",
+        "sourceUrl": "sources/slack/people-ops/2890012345-runtime-sabbatical-interim-split.json"
+      },
+      {
+        "id": "slack:2890012345",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 2890012580000,
+        "action": "created",
+        "title": "#eng-oncall: 2890012345",
+        "sourceUrl": "sources/slack/eng-oncall/2890012345.json"
+      },
+      {
+        "id": "slack:2887654321",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 2887654621000,
+        "action": "created",
+        "title": "#customer-success: 2887654321",
+        "sourceUrl": "sources/slack/customer-success/2887654321-fastlane-onboard-slo-verification-loop.json"
+      },
+      {
+        "id": "slack:2876543210",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 2876544299000,
+        "action": "created",
+        "title": "#people-ops: 2876543210",
+        "sourceUrl": "sources/slack/people-ops/2876543210-runtime-leads-interim-split-sabbatical.json"
+      },
+      {
+        "id": "slack:2861010101",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 2861010165000,
+        "action": "created",
+        "title": "#people-ops: 2861010101",
+        "sourceUrl": "sources/slack/people-ops/2861010101-rotation-pilot-capacity-serving-intro-hana.json"
+      },
+      {
+        "id": "slack:2859001234",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 2859002901000,
+        "action": "created",
+        "title": "#people-ops: 2859001234",
+        "sourceUrl": "sources/slack/people-ops/2859001234-interim-platform-partnerships-maya-intro-and-backfills.json"
+      },
+      {
+        "id": "slack:2840011223",
+        "sourceApp": "slack",
+        "actorId": "ava-chen",
+        "occurredAt": 2840011750000,
+        "action": "created",
+        "title": "#new-hires: 2840011223",
+        "sourceUrl": "sources/slack/new-hires/2840011223-lela-pancake-plant-intro.json"
+      },
+      {
+        "id": "slack:2840009876",
+        "sourceApp": "slack",
+        "actorId": "priya-natarajan",
+        "occurredAt": 2840009990000,
+        "action": "created",
+        "title": "#people-ops: 2840009876",
+        "sourceUrl": "sources/slack/people-ops/2840009876-interim-model-onboarding-cover-and-handoffs.json"
+      },
+      {
+        "id": "slack:2839990011",
+        "sourceApp": "slack",
+        "actorId": "jordan-blake",
+        "occurredAt": 2839990042000,
+        "action": "created",
+        "title": "#partnerships: 2839990011",
+        "sourceUrl": "sources/slack/partnerships/2839990011-vendor-legal-addr-normalization-blocks-po-clearing.json"
+      }
+    ]
+  }
+}
